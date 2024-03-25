@@ -1,7 +1,7 @@
 use queue::Queue;
 use std::collections::HashSet;
 use combinations::Combinations;
-// use itertools::iproduct;
+use std::iter::zip;
 use std::iter::FromIterator;
 
 pub struct Player {
@@ -10,7 +10,19 @@ pub struct Player {
     money: i32
 }
 
+/// Represents a player in a Texas Hold'em game.
 impl Player {
+    /// Creates a new player with the given player ID, name, and initial amount of money.
+    ///
+    /// # Arguments
+    ///
+    /// * `player_id` - The unique identifier for the player.
+    /// * `name` - The name of the player.
+    /// * `money` - The initial amount of money the player has.
+    ///
+    /// # Returns
+    ///
+    /// A new `Player` instance.
     pub fn new(player_id: i32, name: String, money: i32) -> Player {
         Player {
             player_id,
@@ -19,14 +31,29 @@ impl Player {
         }
     }
     
+    /// Returns the player ID.
+    ///
+    /// # Returns
+    ///
+    /// The player ID.
     pub fn get_player_id(&self) -> i32 {
         self.player_id
     }
 
+    /// Returns the player's name.
+    ///
+    /// # Returns
+    ///
+    /// The player's name.
     pub fn get_name(&self) -> String {
         self.name.clone()
     }
 
+    /// Returns the amount of money the player has.
+    ///
+    /// # Returns
+    ///
+    /// The amount of money the player has.
     pub fn get_money(&self) -> i32 {
         self.money
     }
@@ -75,7 +102,7 @@ impl Game {
 }
 
 
-#[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone)]
+#[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
 pub enum Suit {
     Hearts,
     Diamonds,
@@ -83,6 +110,9 @@ pub enum Suit {
     Spades
 }
 
+/// Implements the `Display` trait for the `Suit` enum.
+///
+/// This allows instances of the `Suit` enum to be formatted as strings using the `write!` macro.
 impl std::fmt::Display for Suit {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -95,14 +125,14 @@ impl std::fmt::Display for Suit {
 }
 
 
-#[derive(Hash, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Hash, Eq, PartialEq, Clone, Ord, PartialOrd, Debug)]
 pub struct Card {
     suit: Suit,
-    value: i8
+    value: i32
 }
 
 impl Card {
-    pub fn new(suit: Suit, value: i8) -> Card {
+    pub fn new(suit: Suit, value: i32) -> Card {
         Card {
             suit,
             value
@@ -117,6 +147,7 @@ impl std::fmt::Display for Card {
 }
 
 pub enum HandType {
+    HighCard,
     Pair,
     TwoPair,
     ThreeOfAKind,
@@ -129,14 +160,41 @@ pub enum HandType {
     RoyalFlush
 }
 
+impl std::fmt::Display for HandType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            HandType::HighCard => write!(f, "High Card"),
+            HandType::Pair => write!(f, "Pair"),
+            HandType::TwoPair => write!(f, "Two Pair"),
+            HandType::ThreeOfAKind => write!(f, "Three of a Kind"),
+            HandType::FourOfAKind => write!(f, "Four of a Kind"),
+            HandType::FullHouse => write!(f, "Full House"),
+            HandType::Flush => write!(f, "Flush"),
+            HandType::Straight => write!(f, "Straight"),
+            HandType::StraightFlush => write!(f, "Straight Flush"),
+            HandType::Royal => write!(f, "Royal"),
+            HandType::RoyalFlush => write!(f, "Royal Flush")
+        }
+    }
+}
+
 pub struct Hand {
     cards: HashSet<Card>
 }
 
 impl Hand {
-    pub fn new() -> Hand {
+    pub fn new(input_cards: HashSet::<Card>) -> Hand {
+        if input_cards.len() != 5 {
+            panic!("A hand must have exactly 5 cards");
+        }
+
+        for card in &input_cards {
+            if card.value < 2 || card.value > 14 {
+                panic!("Card value must be between 2 and 14");
+            }
+        }
         Hand {
-            cards: HashSet::new()
+            cards: input_cards.clone()
         }
     }
 
@@ -148,22 +206,33 @@ impl Hand {
         &self.cards
     }
 
-    pub fn check_pair(&self) -> Option<Vec::<Vec<Card>>> {
+    pub fn check_high_card(&self) -> Option<(HashSet<Vec<Card>>, i32, Vec<Card>)> {
+        let cards = self.cards.iter().cloned().collect::<Vec<Card>>();
+        let highest_card = cards.iter().max_by(|card1, card2| card1.value.cmp(&card2.value)).unwrap();
+        let transformed_set: HashSet<Vec<Card>> = self.cards.iter().map(|card| vec![card.clone()]).collect();
+
+        Some((transformed_set, highest_card.value, vec![highest_card.clone()]))
+    }
+
+    pub fn check_pair(&self) -> Option<(HashSet::<Vec<Card>>, i32, Vec<Card>)> {
         let all_pairs = Combinations::new(self.cards.iter().cloned().collect(), 2);
-        let mut pairs = Vec::<Vec<Card>>::new();
+        let mut pairs = HashSet::<Vec<Card>>::new();
         for pair in all_pairs {
             if pair[0].value == pair[1].value {
-                pairs.push(pair);
+                pairs.insert(pair);
             }
         }
 
+        let highest_pair: (i32, Vec<Card>) = pairs.iter().map(|pair| (pair[0].value, pair.clone()))
+        .max_by(|(value1, _pair1), (value2, _pair2)| value1.cmp(value2))?;
+
         match pairs.len() {
             0 => None,
-            _ => Some(pairs)
+            _ => Some((pairs, highest_pair.0, highest_pair.1))
         }
     }
 
-    pub fn check_two_pair(&self) -> Option<HashSet::<Vec<Card>>> {
+    pub fn check_two_pair(&self) -> Option<(HashSet::<Vec<Card>>, i32, Vec<Card>)> {
         let all_combinations = Combinations::new(self.cards.iter().cloned().collect(), 2);
         let all_combinations_vec = all_combinations.collect::<Vec<Vec<Card>>>();
         let mut two_pairs = HashSet::<Vec<Card>>::new();
@@ -182,12 +251,23 @@ impl Hand {
 
         match two_pairs.len() {
             0 => None,
-            _ => Some(two_pairs)
+            _ => {
+                let highest_two_pair = two_pairs.iter().max_by(|pair1, pair2| {
+                    let pair1_values = pair1.iter().map(|card| card.value).collect::<Vec<i32>>();
+                    let pair2_values = pair2.iter().map(|card| card.value).collect::<Vec<i32>>();
+                    pair1_values.iter().max().unwrap().cmp(pair2_values.iter().max().unwrap())
+                }).unwrap();
+
+                let highest_value: i32 = highest_two_pair.iter().map(|card| card.value).sum();
+
+
+                Some((two_pairs.clone(), highest_value, highest_two_pair.clone()))
+            }
         }
     }
 
 
-    pub fn check_three_of_a_kind(&self) -> Option<HashSet::<Vec<Card>>> {
+    pub fn check_three_of_a_kind(&self) -> Option<(HashSet::<Vec<Card>>, i32, Vec<Card>)> {
         let all_combinations = Combinations::new(self.cards.iter().cloned().collect(), 3);
         let mut three_of_a_kinds = HashSet::<Vec<Card>>::new();
         for combination in all_combinations {
@@ -198,12 +278,22 @@ impl Hand {
 
         match three_of_a_kinds.len() {
             0 => None,
-            _ => Some(three_of_a_kinds)
+            _ => {
+                let highest_three_of_a_kind = three_of_a_kinds.iter().max_by(|pair1, pair2| {
+                    let pair1_values = pair1.iter().map(|card| card.value).collect::<Vec<i32>>();
+                    let pair2_values = pair2.iter().map(|card| card.value).collect::<Vec<i32>>();
+                    pair1_values.iter().max().unwrap().cmp(pair2_values.iter().max().unwrap())
+                }).unwrap();
+
+                let highest_value: i32 = highest_three_of_a_kind.iter().map(|card| card.value).sum();
+
+                Some((three_of_a_kinds.clone(), highest_value, highest_three_of_a_kind.clone()))
+            }
         }
     }
 
 
-    pub fn check_four_of_a_kind(&self) -> Option<HashSet::<Vec<Card>>> {
+    pub fn check_four_of_a_kind(&self) -> Option<(HashSet::<Vec<Card>>, i32, Vec<Card>)> {
         let all_combinations = Combinations::new(self.cards.iter().cloned().collect(), 4);
         let mut four_of_a_kinds = HashSet::<Vec<Card>>::new();
         for combination in all_combinations {
@@ -214,12 +304,22 @@ impl Hand {
         
         match four_of_a_kinds.len() {
             0 => None,
-            _ => Some(four_of_a_kinds)
+            _ => {
+                let highest_four_of_a_kind = four_of_a_kinds.iter().max_by(|pair1, pair2| {
+                    let pair1_values = pair1.iter().map(|card| card.value).collect::<Vec<i32>>();
+                    let pair2_values = pair2.iter().map(|card| card.value).collect::<Vec<i32>>();
+                    pair1_values.iter().max().unwrap().cmp(pair2_values.iter().max().unwrap())
+                }).unwrap();
+
+                let highest_value = highest_four_of_a_kind.iter().map(|card| card.value).sum();
+
+                Some((four_of_a_kinds.clone(), highest_value, highest_four_of_a_kind.clone()))
+            }
         }
     }
 
 
-    pub fn check_full_house(&self) -> HashSet::<Vec<Card>> {
+    pub fn check_full_house(&self) -> Option<(HashSet::<Vec<Card>>, i32, Vec<Card>)> {
         let all_triplets = Combinations::new(self.cards.iter().cloned().collect(), 3);
         let mut full_houses = HashSet::<Vec<Card>>::new();
         
@@ -235,7 +335,20 @@ impl Hand {
             }
         }
 
-        full_houses
+        match full_houses.len() {
+            0 => None,
+            _ => {
+                let highest_full_house = full_houses.iter().max_by(|pair1, pair2| {
+                    let pair1_values = pair1.iter().map(|card| card.value).collect::<Vec<i32>>();
+                    let pair2_values = pair2.iter().map(|card| card.value).collect::<Vec<i32>>();
+                    pair1_values.iter().max().unwrap().cmp(pair2_values.iter().max().unwrap())
+                }).unwrap();
+
+                let highest_value = highest_full_house.iter().map(|card| card.value).sum();
+
+                Some((full_houses.clone(), highest_value, highest_full_house.clone()))
+            }
+        }
     }
 
 
@@ -249,7 +362,7 @@ impl Hand {
     }
 
     pub fn check_royal(&self) -> bool {
-        let mut values = Vec::<i8>::new();
+        let mut values = Vec::<i32>::new();
         for card in &self.cards {
             values.push(card.value);
         }
@@ -258,7 +371,7 @@ impl Hand {
     }
 
     pub fn check_straight(&self) -> bool {
-        let mut values = Vec::<i8>::new();
+        let mut values = Vec::<i32>::new();
         for card in &self.cards {
             values.push(card.value);
         }
@@ -292,6 +405,16 @@ impl Hand {
         let is_royal = self.check_royal();
         let is_straight = self.check_straight();
 
+        let high_card_output = self.check_high_card();
+        let pairs_output= self.check_pair();
+        let two_pairs_output = self.check_two_pair();
+        let triplets_output = self.check_three_of_a_kind();
+        let four_of_a_kind_output = self.check_four_of_a_kind();
+        let full_houses_output = self.check_full_house();
+
+        let outputs = vec![four_of_a_kind_output, full_houses_output, triplets_output, two_pairs_output, pairs_output, high_card_output];
+        let hand_types_ranked = vec![HandType::FourOfAKind, HandType::FullHouse, HandType::ThreeOfAKind, HandType::TwoPair, HandType::Pair, HandType::HighCard];
+
         match is_flush {
             true => {
                 match is_royal {
@@ -314,33 +437,21 @@ impl Hand {
                 match is_straight {
                     true => println!("Straight"),
                     false => {
-                        println!("hello!");
+                        for (output, hand_type) in zip(outputs, hand_types_ranked) {
+                            match output {
+                                Some((_, highest_value, highest_hand)) => {
+                                    println!("{}", hand_type);
+                                    break;
+                                },
+                                None => {
+                                    // println!("No hand");
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
 }
-
-
-// pub struct AllPossibleHands {
-//     hands: HashSet<Hand>
-// }
-
-
-// impl AllPossibleHands {
-//     pub fn new() -> AllPossibleHands {
-//         AllPossibleHands {
-//             hands: HashSet::new()
-//         }
-//     }
-
-//     // pub fn add_hand(&mut self, hand: hand) {
-//     //     self.hands.insert(hand);
-//     // }
-
-//     pub fn get_hands(&self) -> &HashSet<Hand> {
-//         &self.hands
-//     }
-// }
 
