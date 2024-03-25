@@ -46,3 +46,14 @@
 4. Two Pair
 5. Pair
 6. High Card
+
+## Highest Possible "Remaining Scores" and the hand
+Highcard: 6188 (14H, 13C, 12H, 11S, 9H)
+Pair: 3848 (14H, 14C, 12D, 11D, 13C)
+Two Pair: 624 (14H, 14D, 13C, 13S, 12C)
+Three of a Kind: 1976 (14D, 14C, 14H, 13C, 12C)
+Straight: 9880 (13C, 12D, 11D, 10D, 14D)
+Flush: 9828 (13C, 12C, 11C, 9C, 14C)
+Full House: 10764 (13C, 13D, 14H, 14D, 14S)
+Four of a Kind: 676 (13C, 14C, 14H, 14D, 14S)
+Straight Flush: 9100 (9C, 10C, 11C, 12C, 13C)

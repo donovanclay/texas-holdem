@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use combinations::Combinations;
 use std::iter::zip;
 use std::iter::FromIterator;
+use std::collections::HashMap;
 
 pub struct Player {
     player_id: i32,
@@ -102,13 +103,14 @@ impl Game {
 }
 
 
-#[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Copy)]
 pub enum Suit {
     Hearts,
     Diamonds,
     Clubs,
     Spades
 }
+
 
 /// Implements the `Display` trait for the `Suit` enum.
 ///
@@ -146,6 +148,8 @@ impl std::fmt::Display for Card {
     }
 }
 
+
+#[derive(Eq, Hash, PartialEq)]
 pub enum HandType {
     HighCard,
     Pair,
@@ -159,6 +163,7 @@ pub enum HandType {
     Royal,
     RoyalFlush
 }
+
 
 impl std::fmt::Display for HandType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -178,9 +183,61 @@ impl std::fmt::Display for HandType {
     }
 }
 
+
+impl Ord for HandType {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let hand_types = vec![HandType::HighCard, HandType::Pair, HandType::TwoPair, HandType::ThreeOfAKind, HandType::Straight, HandType::Flush, HandType::FullHouse, HandType::FourOfAKind, HandType::StraightFlush, HandType::RoyalFlush];
+        let self_index = hand_types.iter().position(|hand_type| hand_type == self).unwrap();
+        let other_index = hand_types.iter().position(|hand_type| hand_type == other).unwrap();
+        self_index.cmp(&other_index)
+    }
+}
+
+
+impl PartialOrd for HandType {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+
+#[derive(Eq, Hash, PartialEq)]
+pub struct HandScore {
+    hand_type: HandType,
+    score: i32
+}
+
+
+impl std::fmt::Display for HandScore {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{} with a score of {}", self.hand_type, self.score)
+    }
+}
+
+
+impl Ord for HandScore {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let c = self.hand_type.cmp(&other.hand_type);
+        if c == std::cmp::Ordering::Equal {
+            self.score.cmp(&other.score)
+        } else {
+            c
+        }
+    }
+}
+
+
+impl PartialOrd for HandScore {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+
 pub struct Hand {
     cards: HashSet<Card>
 }
+
 
 impl Hand {
     pub fn new(input_cards: HashSet::<Card>) -> Hand {
@@ -361,14 +418,16 @@ impl Hand {
         suits.len() == 1
     }
 
+
     pub fn check_royal(&self) -> bool {
         let mut values = Vec::<i32>::new();
         for card in &self.cards {
             values.push(card.value);
         }
         values.sort();
-        values == vec![1, 10, 11, 12, 13]
+        values == vec![10, 11, 12, 13, 14]
     }
+
 
     pub fn check_straight(&self) -> bool {
         let mut values = Vec::<i32>::new();
@@ -376,8 +435,8 @@ impl Hand {
             values.push(card.value);
         }
         values.sort();
-        // check for ace, 10, jack, queen, king
-        if values == vec![1, 10, 11, 12, 13] {
+        // check for ace, 1, 2, 3, 4
+        if values == vec![2, 3, 4, 5, 14] {
             return true;
         }
         for i in 0..values.len() - 1 {
@@ -400,7 +459,33 @@ impl Hand {
     }
 
 
-    pub fn check_hand(&self) {
+    fn calculate_score_for_boolean(&self) -> i32 {
+        let mut score = 0;
+        let values = self.cards.iter().map(|card| card.value);
+        let mut values = values.collect::<Vec<i32>>();
+        values.sort();
+        for (i, value) in values.iter().enumerate() {
+            score += value * (i + 1) as i32 * 52 as i32;
+        }
+        score
+    }
+
+    fn calculate_score_for_straight(&self) -> i32 {
+        let mut score = 0;
+        let values = self.cards.iter().map(|card| card.value);
+        let mut values = values.collect::<Vec<i32>>();
+        values.sort();
+        if values == vec![2, 3, 4, 5, 14] {
+            values = vec![1, 2, 3, 4, 5];
+        }
+        for (i, value) in values.iter().enumerate() {
+            score += value * (i + 1) as i32 * 52 as i32;
+        }
+        score
+    }
+
+
+    pub fn check_hand(&self) -> HandScore {
         let is_flush = self.check_flush();
         let is_royal = self.check_royal();
         let is_straight = self.check_straight();
@@ -414,20 +499,45 @@ impl Hand {
 
         let outputs = vec![four_of_a_kind_output, full_houses_output, triplets_output, two_pairs_output, pairs_output, high_card_output];
         let hand_types_ranked = vec![HandType::FourOfAKind, HandType::FullHouse, HandType::ThreeOfAKind, HandType::TwoPair, HandType::Pair, HandType::HighCard];
+        let hand_type_multiples = HashMap::<HandType, i32>::from_iter(vec![
+            (HandType::HighCard, 1),
+            (HandType::Pair, 6188),
+            (HandType::TwoPair, 3848),
+            (HandType::ThreeOfAKind, 624),
+            (HandType::Straight, 1976),
+            (HandType::Flush, 9880),
+            (HandType::FullHouse, 9828),
+            (HandType::FourOfAKind, 10764),
+            (HandType::StraightFlush, 676),
+            (HandType::RoyalFlush, 9100)
+        ]);
+        
+        // let output: HandScore;
+        let mut output_hand_type: HandType= HandType::HighCard;
+        let mut score: i32 = 0;
 
         match is_flush {
             true => {
                 match is_royal {
                     true => {
-                        println!("Royal Flush");
+                        // println!("Royal Flush");
+                        score = self.calculate_score_for_boolean();
+                        // println!("Score: {}", score);
+                        output_hand_type = HandType::RoyalFlush;
                     },
                     false => {
                         match is_straight {
                             true => {
-                                println!("Straight Flush");
+                                // println!("Straight Flush");
+                                score = self.calculate_score_for_straight();
+                                // println!("Score: {}", score);
+                                output_hand_type = HandType::StraightFlush;
                             },
                             false => {
-                                println!("Flush");
+                                // println!("Flush");
+                                score = self.calculate_score_for_boolean();
+                                // println!("Score: {}", score);
+                                output_hand_type = HandType::Flush;
                             }
                         }
                     }
@@ -435,12 +545,38 @@ impl Hand {
             },
             false => {
                 match is_straight {
-                    true => println!("Straight"),
+                    true => {
+                        // println!("Straight");
+                        score = self.calculate_score_for_boolean();
+                        // println!("Score: {}", score);
+                        output_hand_type = HandType::Straight;
+                    }
                     false => {
                         for (output, hand_type) in zip(outputs, hand_types_ranked) {
                             match output {
                                 Some((_, highest_value, highest_hand)) => {
-                                    println!("{}", hand_type);
+                                    // println!("{}", hand_type);
+                                    let remaining_cards = &self.cards - &HashSet::<Card>::from_iter(highest_hand.clone());
+                                    let remaining_values = remaining_cards.iter().map(|card| card.value);
+                                    let mut remaining_values = remaining_values.collect::<Vec<i32>>();
+                                    remaining_values.sort();
+                                    
+                                    if hand_type == HandType::FullHouse {
+                                        score = self.calculate_score_for_boolean();
+                                        // println!("Score: {}", score);
+                                        output_hand_type = hand_type;
+                                        break;
+                                    }
+
+                                    let mut sum_of_remaining = 0;
+
+                                    for (i, value) in remaining_values.iter().enumerate() {
+                                        sum_of_remaining += value * (i + 1) as i32 * 52 as i32;
+                                    }
+
+                                    // println!("Sum of remaining: {}", sum_of_remaining);
+                                    output_hand_type = hand_type;
+                                    score = sum_of_remaining;
                                     break;
                                 },
                                 None => {
@@ -451,6 +587,11 @@ impl Hand {
                     }
                 }
             }
+        }
+
+        HandScore {
+            hand_type: output_hand_type,
+            score
         }
     }
 }

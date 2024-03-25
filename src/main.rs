@@ -72,137 +72,59 @@ fn test1() {
 
 fn test2() {
 
-    let card1 = types::Card::new(types::Suit::Hearts, 13);
-    let card2 = types::Card::new(types::Suit::Clubs, 14);
-    let card3 = types::Card::new(types::Suit::Spades, 12);
-    let card4 = types::Card::new(types::Suit::Clubs, 12);
-    let card5 = types::Card::new(types::Suit::Hearts, 12);
+    let values1 = vec![14, 10, 11, 12, 13];
+    let suit1 = vec![types::Suit::Clubs, types::Suit::Clubs, types::Suit::Clubs, types::Suit::Clubs, types::Suit::Clubs];
 
-    let mut my_cards = HashSet::<types::Card>::new();
-    my_cards.insert(card1);
-    my_cards.insert(card2);
-    my_cards.insert(card3);
-    my_cards.insert(card4);
-    my_cards.insert(card5);
+    let values2 = vec![14, 10, 11, 12, 13];
+    let suit2 = vec![types::Suit::Clubs, types::Suit::Clubs, types::Suit::Clubs, types::Suit::Clubs, types::Suit::Diamonds];
 
-    let mut hand = types::Hand::new(my_cards);
+    let mut cards1 = Vec::<types::Card>::new();
+    let mut cards2 = Vec::<types::Card>::new();
 
-    for card in hand.get_cards() {
+    for (suit, value) in suit1.iter().zip(values1.iter()) {
+        cards1.push(types::Card::new(*suit, *value));
+    }
+
+    for (suit, value) in suit2.iter().zip(values2.iter()) {
+        cards2.push(types::Card::new(*suit, *value));
+    }
+
+    let mut my_cards1 = HashSet::<types::Card>::new();
+    let mut my_cards2 = HashSet::<types::Card>::new();
+
+    for card in cards1 {
+        my_cards1.insert(card);
+    }
+
+    for card in cards2 {
+        my_cards2.insert(card);
+    }
+
+    let hand1 = types::Hand::new(my_cards1);
+    let hand2 = types::Hand::new(my_cards2);
+
+    for card in hand1.get_cards() {
         println!("{}", card);
     }
     println!();
-
-    let high_card_output = hand.check_high_card();
-    let pairs_output= hand.check_pair();
-    let two_pairs_output = hand.check_two_pair();
-    let triplets_output = hand.check_three_of_a_kind();
-    let quads_output = hand.check_four_of_a_kind();
-    let full_houses_output = hand.check_full_house();
-
-    let functions = vec![types::Hand::check_high_card, types::Hand::check_pair, types::Hand::check_two_pair, types::Hand::check_three_of_a_kind, types::Hand::check_four_of_a_kind, types::Hand::check_full_house];
-    let output_types = vec!["High Card", "Pairs", "Two Pairs", "Triplets", "Quads", "Full Houses"];
-
-    for (index, func) in functions.iter().enumerate() {
-        let output: Option<(HashSet<Vec<types::Card>>, i32, Vec<types::Card>)> = func(&hand);
-
-        match output {
-            Some((cards, highest_value, highest_of_this_type)) => {
-                println!("Highest Value {}: {}", output_types[index], highest_value);
-                for card in highest_of_this_type {
-                    println!("{}", card);
-                }
-                println!();
-            },
-            None => {
-                println!("No {}", output_types[index])
-            }
-        }
+    for card in hand2.get_cards() {
+        println!("{}", card);
     }
-
-    // {
-    //     for output in outputs.iter() {
-    //         match output {
-    //             Some((cards, value, _)) => {
-    //                 println!("Value: {}", value);
-    //                 for card in cards {
-    //                     println!("{}", card);
-    //                 }
-    //                 println!();
-    //             },
-    //             None => {
-    //                 println!("No pairs");
-    //             }
-    //         }
-    //     }
-
-    //     match pairs_output{
-    //         Some((pairs, highest_value, _)) => {
-    //             println!("Highest value pair: {}", highest_value);
-    //         },
-    //         None => {
-    //             println!("No pairs");
-    //         }
-    //     }
-
-    //     match two_pairs_output {
-    //         Some((two_pairs, highest_value, _)) => {
-    //             println!("Highest value two pair: {}", highest_value);
-    //         },
-    //         None => {
-    //             println!("No two pairs");
-    //         }
-    //     }
-
-    //     match triplets_output {
-    //         Some((triplets, highest_value, highest_triplet)) => {
-    //             println!("Highest value triplet: {}", highest_value);
-
-    //             println!("Highest triplet:")
-
-    //         },
-    //         None => {
-    //             println!("No triplets");
-    //         }
-    //     }
-
-    //     match quads_output {
-    //         Some((quads, highest_value, highest_quad)) => {
-    //             println!("Highest value quad: {}", highest_value);
-
-    //             println!("Highest quad:");
-    //             for card in highest_quad {
-    //                 println!("{}", card);
-    //             }
-    //             println!();
-    //         },
-    //         None => {
-    //             println!("No quads");
-    //         }
-    //     }
-
-    //     match full_houses_output {
-    //         Some((full_houses, highest_value, highest_full_house)) => {
-    //             println!("Highest value full house: {}", highest_value);
-                
-    //             println!("Highest full house:");
-    //             for card in highest_full_house {
-    //                 println!("{}", card);
-    //             }
-    //             println!();
-    //         },
-    //         None => {
-    //             println!("No full houses");
-    //         }
-    //     }
-    // }
-    
-
-    println!("Flush: {}", hand.check_flush());
-    println!("Royal: {}", hand.check_royal());
-    println!("Straight: {}", hand.check_straight());
     println!();
     println!("OUTPUTS:");
-    hand.check_hand();
+    let hand1_score = hand1.check_hand();
+    let hand2_score = hand2.check_hand();
+
+    println!("{}", hand1_score);
+    println!("{}", hand2_score);
+
+    if hand1_score > hand2_score {
+        println!("Player 1 wins!");
+    } else if hand1_score < hand2_score {
+        println!("Player 2 wins!");
+    } else {
+        println!("It's a tie!");
+    }
 }
 
 fn main() {
