@@ -1,14 +1,12 @@
-use queue::Queue;
-use std::collections::HashSet;
-use combinations::Combinations;
-use std::iter::zip;
-use std::iter::FromIterator;
+// pub mod crate::..::hand;
+use crate::game::hand;
 
-
+// pub mod player {
 pub struct Player {
     player_id: i32,
     name: String,
-    money: i32
+    money: i32,
+    hole_cards: Vec<hand::Card>
 }
 
 /// Represents a player in a Texas Hold'em game.
@@ -28,7 +26,8 @@ impl Player {
         Player {
             player_id,
             name,
-            money
+            money,
+            hole_cards: Vec::<hand::Card>::new()
         }
     }
     
@@ -58,6 +57,16 @@ impl Player {
     pub fn get_money(&self) -> i32 {
         self.money
     }
+
+
+    pub fn get_hole_cards(&self) -> Vec<hand::Card> {
+        self.hole_cards.clone()
+    }
+
+
+    pub fn set_hole_cards(&mut self, cards: Vec<hand::Card>) {
+        self.hole_cards = cards;
+    }
 }
 
 
@@ -66,13 +75,9 @@ impl Clone for Player {
         Player {
             player_id: self.player_id,
             name: self.name.clone(),
-            money: self.money
+            money: self.money,
+            hole_cards: self.hole_cards.clone()
         }
     }
 }
-
-
-
-
-
-
+// }
