@@ -1,9 +1,9 @@
-// pub mod crate::..::hand;
 use crate::game::hand;
 
-// pub mod player {
+pub type PlayerId = i32;
+
 pub struct Player {
-    player_id: i32,
+    player_id: PlayerId,
     name: String,
     money: i32,
     hole_cards: Vec<hand::Card>
@@ -58,6 +58,11 @@ impl Player {
         self.money
     }
 
+    
+    pub fn set_money(&mut self, money: i32) {
+        self.money = money;
+    }
+
 
     pub fn get_hole_cards(&self) -> Vec<hand::Card> {
         self.hole_cards.clone()
@@ -80,4 +85,3 @@ impl Clone for Player {
         }
     }
 }
-// }

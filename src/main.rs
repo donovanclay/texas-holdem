@@ -12,6 +12,8 @@ use std::process;
 mod utils;
 // mod hand;
 pub mod game;
+// pub mod game::hand;
+use crate::game::hand;
 // pub mod game::player;
 // mod player;
 
@@ -81,10 +83,10 @@ fn print_type_of<T>(_: &T) {
 
 // fn test2() {
 
-//     let values1 = vec![3, 3, 3, 13, 12];
+//     let values1 = vec![3, 3, 3, 2, 2];
 //     let suit1 = vec![hand::Suit::Clubs, hand::Suit::Diamonds, hand::Suit::Hearts, hand::Suit::Clubs, hand::Suit::Diamonds];
 
-//     let values2 = vec![2, 2, 2, 14, 11];
+//     let values2 = vec![2, 2, 2, 14, 14];
 //     let suit2 = vec![hand::Suit::Clubs, hand::Suit::Diamonds, hand::Suit::Hearts, hand::Suit::Clubs, hand::Suit::Diamonds];
 
 //     let mut cards1 = Vec::<hand::Card>::new();
@@ -143,10 +145,10 @@ fn print_type_of<T>(_: &T) {
 
 // fn test3() {
 //     let community_cards = vec![
-//         hand::Card::new(hand::Suit::Spades, 7),
-//         hand::Card::new(hand::Suit::Diamonds, 4),
-//         hand::Card::new(hand::Suit::Clubs, 9),
-//         hand::Card::new(hand::Suit::Diamonds, 9),
+//         hand::Card::new(hand::Suit::Spades, 3),
+//         hand::Card::new(hand::Suit::Diamonds, 3),
+//         hand::Card::new(hand::Suit::Clubs, 3),
+//         hand::Card::new(hand::Suit::Diamonds, 2),
 //         hand::Card::new(hand::Suit::Spades, 2)
 //     ];
 
@@ -259,6 +261,7 @@ fn test4(ask_for_chip_sizes: bool) {
     game.start_game();
     
 }
+
 
 fn main() {
     // test1();

@@ -40,6 +40,17 @@ impl Card {
             value
         }
     }
+
+    pub fn new_full_deck() -> HashSet<Card> {
+        let mut deck = HashSet::<Card>::new();
+        for suit in vec![Suit::Hearts, Suit::Diamonds, Suit::Clubs, Suit::Spades] {
+            for value in 2..=14 {
+                deck.insert(Card::new(suit, value));
+            }
+        }
+
+        deck
+    }
 }
 
 impl std::fmt::Display for Card {
@@ -380,6 +391,7 @@ impl Hand {
         score
     }
 
+
     fn calculate_score_for_straight(&self) -> i32 {
         let mut score = 0;
         let values = self.cards.iter().map(|card| card.value);
@@ -391,6 +403,25 @@ impl Hand {
         for (i, value) in values.iter().enumerate() {
             score += value * (i + 1) as i32 * 14  as i32;
         }
+        score
+    }
+
+
+    fn calculate_score_for_full_house(&self) -> i32 {
+        let mut score = 0;
+        let values_map = self.cards.iter().map(|card| card.value).fold(HashMap::<i32, i32>::new(), |mut acc, value| {
+            *acc.entry(value).or_insert(0) += 1;
+            acc
+        });
+
+        for (key, value) in values_map {
+            if value == 3 {
+                score += key * 14;
+            } else {
+                score += key;
+            }
+        }
+
         score
     }
 
@@ -462,7 +493,7 @@ impl Hand {
                                     remaining_values.sort();
                                     
                                     if hand_type == HandType::FullHouse {
-                                        score = self.calculate_score_for_boolean();
+                                        score = self.calculate_score_for_full_house();
                                         output_hand_type = hand_type;
                                         break;
                                     }
