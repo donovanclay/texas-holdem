@@ -12,11 +12,12 @@ pub mod hand;
 pub struct Game {
     game_id: i32,
     num_players: i32,
-    players: Queue<player::Player>,
+    players: Queue<player::PlayerId>,
+    players_in_round: Queue<player::PlayerId>,
+    player_id_to_player: HashMap<player::PlayerId, player::Player>,
     big_blind: i32,
     dealer_location: i16,
     pot: i32,
-    players_in_round: Queue<player::Player>,
     community_cards: Vec<hand::Card>,
     curr_bet: i32,
     last_player_to_raise: player::PlayerId,
@@ -31,10 +32,11 @@ impl Game {
             game_id,
             num_players: 0,
             players: Queue::new(),
+            players_in_round: Queue::new(),
+            player_id_to_player: HashMap::new(),
             big_blind,
             dealer_location: 0,
             pot: 0,
-            players_in_round: Queue::new(),
             community_cards: Vec::<hand::Card>::new(),
             curr_bet: big_blind,
             last_player_to_raise: 0,
@@ -45,8 +47,9 @@ impl Game {
 
 
     pub fn add_player(&mut self, player: player::Player) {
-        self.players.queue(player.clone()).unwrap();
-        self.players_in_round.queue(player.clone()).unwrap();
+        self.players.queue(player.get_player_id()).unwrap();
+        self.players_in_round.queue(player.get_player_id()).unwrap();
+        self.player_id_to_player.insert(player.get_player_id(), player.clone());
         self.num_players += 1;
     }
 
@@ -66,9 +69,15 @@ impl Game {
     }
 
 
+    fn print_community_cards(&self) {
+        for card in &self.community_cards {
+            println!("{}", card);
+        }
+    }
+
+
     fn make_player_bet(&mut self, player: &mut player::Player, bet: i32) {
         player.set_money(player.get_money() - bet);
-        // self.curr_bet = bet;
         if bet > self.curr_bet {
             self.curr_bet = bet;
             self.last_player_to_raise = player.get_player_id();
@@ -79,9 +88,21 @@ impl Game {
 
 
     fn ask_player(&mut self, prev_contributions: &mut HashMap<player::PlayerId, i32>) {
-        let mut player = self.players_in_round.dequeue().unwrap();
+        println!();
+        println!("Community cards: ");
+        self.print_community_cards();
+
+        let player_id = self.players_in_round.dequeue().unwrap();
+        let mut player = self.player_id_to_player.get_mut(&player_id).unwrap();
+        
         let curr_money = player.get_money();
         let curr_contribution = prev_contributions.get(&player.get_player_id()).cloned().unwrap_or(0);
+
+        
+
+        println!();
+        println!("Your cards: ");
+        player.print_hole_cards();
 
         println!();
         println!("Current size of pot: {}", self.pot);
@@ -89,7 +110,6 @@ impl Game {
         println!();
 
         // prompt the player
-        println!("CURRENT BET: {}", self.curr_bet);
         match self.curr_bet {
             0 => print!("{}, you have ${}. You have {} in the pot. Would you like to fold, raise, or check? ", player.get_name(), curr_money, curr_contribution),
             _ => print!("{}, you have ${}. You have {} in the pot. Would you like to fold, raise, or call? ", player.get_name(), curr_money, curr_contribution)
@@ -114,12 +134,20 @@ impl Game {
                 } else {
                     let prev_contribution = prev_contributions.get(&player.get_player_id()).cloned().unwrap_or(0);
                     let this_bet = input - prev_contribution;
+                    // self.make_player_bet(&mut player, this_bet);
 
-                    self.make_player_bet(&mut player, this_bet);
+                    player.set_money(player.get_money() - this_bet);
+                    if this_bet > self.curr_bet {
+                        self.curr_bet = this_bet;
+                        self.last_player_to_raise = player.get_player_id();
+                    }
+
+                    self.pot += this_bet;
+
                     prev_contributions.insert(player.get_player_id(), prev_contribution + this_bet);
                     // self.last_player_to_raise = player.get_player_id();
                     self.bet_this_round.insert(player.get_player_id());
-                    self.players_in_round.queue(player).unwrap();
+                    self.players_in_round.queue(player.get_player_id()).unwrap();
 
                     self.has_raised = true;
                 }
@@ -132,10 +160,18 @@ impl Game {
                 let prev_contribution = prev_contributions.get(&player.get_player_id()).cloned().unwrap_or(0);
                 let this_bet = self.curr_bet - prev_contribution;
 
-                self.make_player_bet(&mut player, this_bet);
+                // self.make_player_bet(&mut player, this_bet);
+                player.set_money(player.get_money() - this_bet);
+                if this_bet > self.curr_bet {
+                    self.curr_bet = this_bet;
+                    self.last_player_to_raise = player.get_player_id();
+                }
+
+                self.pot += this_bet;
+
                 prev_contributions.insert(player.get_player_id(), prev_contribution + this_bet);
                 self.bet_this_round.insert(player.get_player_id());
-                self.players_in_round.queue(player).unwrap();
+                self.players_in_round.queue(player.get_player_id()).unwrap();
             }
         };
     }
@@ -164,23 +200,12 @@ impl Game {
                 break;
             }
             self.ask_player(&mut prev_contributions);
-            let player = self.players_in_round.peek().clone().unwrap();
+            let player_id = self.players_in_round.peek().clone().unwrap();
+            let player = self.player_id_to_player.get(&player_id).unwrap().clone();
 
-            // *prev_player = Some(player.get_player_id());
 
             match prev_player {
                 Some(prev_player) => {
-                    println!("Previous player id: {}", prev_player);
-                    println!("last player to raise: {}", self.last_player_to_raise);
-                    // println!("prev contributions: {}", prev_contributions.get(&player.get_player_id()).cloned().unwrap_or(0));
-                    println!("{}", *prev_player == self.last_player_to_raise);
-                    println!("{}", prev_contributions.get(&player.get_player_id()).cloned().unwrap_or(0) == self.curr_bet);
-                    println!("{}", self.bet_this_round.len() >= self.players_in_round.len());
-
-                    let group1 = (self.has_raised, player.get_player_id() == self.last_player_to_raise, self.bet_this_round.len() >= self.players_in_round.len());
-
-                    println!("{:?}", group1);
-
                     if self.has_raised && player.get_player_id() == self.last_player_to_raise && self.bet_this_round.len() >= self.players_in_round.len() {
                         break;
                     }
@@ -216,7 +241,8 @@ impl Game {
 
         // deal the hole cards to each player
         for _ in 0..self.players.len() {
-            let mut player = self.players.dequeue().unwrap();
+            let mut player_id = self.players.dequeue().unwrap();
+            let mut player = self.player_id_to_player.get_mut(&player_id).unwrap();
             let mut hole_cards = Vec::<hand::Card>::new();
             for _ in 0..2 {
                 let card = deck.iter().choose(&mut rand::thread_rng()).unwrap().clone();
@@ -225,14 +251,15 @@ impl Game {
             }
 
             player.set_hole_cards(hole_cards.clone());
-            self.players.queue(player.clone()).unwrap();
+            self.players.queue(player.get_player_id()).unwrap();
         }
 
         // print out the hole cards for each player
         for _ in 0..self.players.len() {
-            let player = self.players.dequeue().unwrap();
+            let player_id = self.players.dequeue().unwrap();
+            let player = self.player_id_to_player.get(&player_id).unwrap().clone();
             println!("Player {} has hole cards: {:?}", player.get_name(), player.get_hole_cards());
-            self.players.queue(player).unwrap();
+            self.players.queue(player.get_player_id()).unwrap();
         }
 
         let mut num_players_in_round = self.players_in_round.len() as i32;
@@ -244,21 +271,23 @@ impl Game {
         // have the small blind and big blind pay
         let mut prev_player: player::PlayerId;
 
-        let mut player = self.players_in_round.dequeue().unwrap();
+        let mut player_id = self.players_in_round.dequeue().unwrap();
+        let mut player = self.player_id_to_player.get_mut(&player_id).unwrap();
         prev_player = player.get_player_id();
         player.set_money(player.get_money() - self.big_blind / 2);
         prev_contributions.insert(player.get_player_id(), self.big_blind / 2);
         self.pot += self.big_blind / 2;
         self.last_player_to_raise = player.get_player_id();
-        self.players_in_round.queue(player).unwrap();
+        self.players_in_round.queue(player.get_player_id()).unwrap();
 
-        let mut player = self.players_in_round.dequeue().unwrap();
+        let mut player_id = self.players_in_round.dequeue().unwrap();
+        let mut player = self.player_id_to_player.get_mut(&player_id).unwrap();
         prev_player = player.get_player_id();
         player.set_money(player.get_money() - self.big_blind);
         prev_contributions.insert(player.get_player_id(), self.big_blind);
         self.pot += self.big_blind;
         self.last_player_to_raise = player.get_player_id();
-        self.players_in_round.queue(player).unwrap();
+        self.players_in_round.queue(player.get_player_id()).unwrap();
 
 
         self.has_raised = false;
@@ -280,6 +309,7 @@ impl Game {
         }
 
         self.community_cards = community_cards.clone();
+
         println!("Community cards: ");
         for card in &self.community_cards {
             println!("{:?}", card);
@@ -327,7 +357,50 @@ impl Game {
 
 
     fn determine_winner(&mut self) {
+        // let mut best_hand = hand::Hand::new(HashSet::new());
+        let mut best_player_id: player::PlayerId = self.players_in_round.peek().unwrap().clone();
+        let mut best_score: Option<hand::HandScore> = None;
 
+        for _ in 0..self.players_in_round.len() {
+            let player_id = self.players_in_round.dequeue().unwrap();
+            let player = self.player_id_to_player.get(&player_id).unwrap().clone();
+            let mut all_cards = Vec::<hand::Card>::new();
+
+            for card in player.get_hole_cards() {
+                all_cards.push(card.clone());
+            }
+
+            for card in &self.community_cards {
+                all_cards.push(card.clone());
+            }
+
+            let all_cards = hand::OnePlayerAllPossibleCards::new(all_cards);
+            let hand_score = all_cards.get_highest_hand_score();
+
+            match best_score {
+                Some(ref mut best_score) => {
+                    if hand_score > *best_score {
+                        // best_hand = hand;
+                        best_player_id = player_id.clone();
+                        *best_score = hand_score;
+                    }
+                },
+                None => {
+                    // best_hand = hand;
+                    best_player_id = player_id.clone();
+                    best_score = Some(hand_score);
+                }
+            }
+
+            self.players.queue(player_id).unwrap();
+        }
+
+        let best_player = self.player_id_to_player.get_mut(&best_player_id).unwrap();
+        best_player.set_money(best_player.get_money() + self.pot);
+
+        println!("The winner is: {}", best_player.get_name());
+        println!("With a hand of: {}", best_score.unwrap());
+        println!("They now have: {}", best_player.get_money());
     }
 
 

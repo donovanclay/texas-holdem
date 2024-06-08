@@ -72,6 +72,13 @@ impl Player {
     pub fn set_hole_cards(&mut self, cards: Vec<hand::Card>) {
         self.hole_cards = cards;
     }
+
+
+    pub fn print_hole_cards(&self) {
+        for card in &self.hole_cards.clone() {
+            println!("{}", card);
+        }
+    }
 }
 
 
