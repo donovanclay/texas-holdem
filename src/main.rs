@@ -1,10 +1,10 @@
 // use std::collections::HashMap;
 use std::collections::HashSet;
-// use queue::Queue;
-
-use std::io;
+use std::{env, io};
 use std::io::Write;
 use std::process;
+
+// use queue::Queue;
 
 // use std::str::Split;
 
@@ -12,8 +12,6 @@ use std::process;
 mod utils;
 // mod hand;
 pub mod game;
-// pub mod game::hand;
-use crate::game::hand;
 // pub mod game::player;
 // mod player;
 
@@ -184,29 +182,23 @@ fn print_type_of<T>(_: &T) {
 // }
 
 
-fn test4(ask_for_chip_sizes: bool) {
+fn test4(ask_for_chip_sizes: bool, debug: bool) {
     let mut game_ids = HashSet::new();
     let mut player_ids = HashSet::new();
     let mut input = String::new();
 
-    print!("Tell me when to start! ");
-    io::stdout().flush().unwrap();
-    io::stdin().read_line(&mut input).unwrap();
-
-    if input.trim() == "start" {
-        let game_id = utils::get_unique_id(&game_ids);
-        game_ids.insert(game_id);
+    let game_id = utils::get_unique_id(&game_ids);
+    game_ids.insert(game_id);
+    if debug {
         println!("Game id: {}", game_id);
-    } else {
-        process::exit(1);
     }
 
-    print!("how many players are playing? ");
-    input.clear();
+    print!("How many players are playing? ");
     io::stdout().flush().unwrap();
     io::stdin().read_line(&mut input).unwrap();
 
     let num_players = input.trim().parse::<i32>().unwrap();
+    print!("\n");
 
     if num_players < 2 {
         println!("You need at least 2 players to play");
@@ -228,11 +220,12 @@ fn test4(ask_for_chip_sizes: bool) {
         game.add_player(game::player::Player::new(player_id, player_name, 1000));
     }
 
-    println!("Number of players: {}\n", game.get_num_players());
-    println!("Game id: {}", game.get_game_id());
-    println!("Game players: {}", game.get_num_players());
-    println!();
-
+    if debug {
+        println!("Number of players: {}", game.get_num_players());
+        println!("Game id: {}", game.get_game_id());
+        println!("Game players: {}", game.get_num_players());
+        println!();
+    }
     let mut chip_sizes: Vec::<i8>;
 
     if ask_for_chip_sizes {
@@ -257,15 +250,21 @@ fn test4(ask_for_chip_sizes: bool) {
         chip_sizes = vec![10, 25, 50, 100];
     }
 
-    println!("Chip sizes: {:?}", chip_sizes);
-    game.start_game();
+    if debug {
+        println!("Chip sizes: {:?}", chip_sizes);
+    }
+
+    game.start_game(debug);
     
 }
 
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    let debug: bool = args.get(1).unwrap_or(&"NOT DEBUG".to_string()) == "--DEBUG";
+
     // test1();
     // test2();
     // test3();
-    test4(false);
+    test4(false, debug);
 }

@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use crate::game::hand;
 
 pub type PlayerId = i32;
@@ -78,6 +79,15 @@ impl Player {
         for card in &self.hole_cards.clone() {
             println!("{}", card);
         }
+    }
+
+    pub fn format_hole_cards(&self) -> VecDeque<String> {
+        let mut output = VecDeque::<String>::new();
+        for card in &self.hole_cards.clone() {
+            output.push_back(card.to_string());
+        }
+
+        output
     }
 }
 
