@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
-use combinations::Combinations;
 use std::iter::zip;
+
+use combinations::Combinations;
 
 #[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Copy)]
 pub enum Suit {
@@ -63,11 +64,12 @@ impl std::fmt::Display for Card {
             write!(f, "{} of {}", self.value, self.suit)
         } else {
             let value_str = match self.value {
+                2..=10 => stringify!(self.value),
                 11 => "Jack",
                 12 => "Queen",
                 13 => "King",
                 14 => "Ace",
-                _ => ""
+                _ => panic!("{}", format!("Error printing value. Value should be within 2-14. Value seen: {}", self.value))
             };
             write!(f, "{} of {}", value_str, self.suit)
         }
@@ -633,6 +635,253 @@ impl OnePlayerAllPossibleCards {
         }
 
         highest_hand_score
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_highest_hand_score() {
+        let cards_1: Vec<Card> = vec![
+            Card::new(Suit::Clubs, 4),
+            Card::new(Suit::Spades, 11),
+            Card::new(Suit::Clubs, 12),
+            Card::new(Suit::Diamonds, 10),
+            Card::new(Suit::Hearts, 8),
+            Card::new(Suit::Spades, 9),
+            Card::new(Suit::Diamonds, 3),
+        ];
+
+        let highest_hand_score_1 = OnePlayerAllPossibleCards { cards: cards_1 }.get_highest_hand_score();
+
+        assert_eq!(highest_hand_score_1.hand_type, HandType::Straight);
+
+        let cards_2: Vec<Card> = vec![
+            Card::new(Suit::Clubs, 4),
+            Card::new(Suit::Spades, 11),
+            Card::new(Suit::Clubs, 7),
+            Card::new(Suit::Diamonds, 10),
+            Card::new(Suit::Hearts, 8),
+            Card::new(Suit::Spades, 9),
+            Card::new(Suit::Diamonds, 3),
+        ];
+
+        let highest_hand_score_2 = OnePlayerAllPossibleCards { cards: cards_2 }.get_highest_hand_score();
+        assert_eq!(highest_hand_score_1.hand_type, HandType::Straight);
+        assert!(highest_hand_score_1 > highest_hand_score_2);
+    }
+
+    #[test]
+    fn test_get_highest_hand_score_high_card() {
+        let cards: Vec<Card> = vec![
+            Card::new(Suit::Clubs, 2),
+            Card::new(Suit::Spades, 5),
+            Card::new(Suit::Clubs, 7),
+            Card::new(Suit::Diamonds, 9),
+            Card::new(Suit::Hearts, 11),
+            Card::new(Suit::Spades, 13),
+            Card::new(Suit::Diamonds, 4),
+        ];
+
+        let highest_hand_score = OnePlayerAllPossibleCards { cards: cards }.get_highest_hand_score();
+        assert_eq!(highest_hand_score.hand_type, HandType::HighCard);
+    }
+
+    #[test]
+    fn test_get_highest_hand_score_flush() {
+        let cards: Vec<Card> = vec![
+            Card::new(Suit::Clubs, 2),
+            Card::new(Suit::Clubs, 5),
+            Card::new(Suit::Clubs, 7),
+            Card::new(Suit::Clubs, 9),
+            Card::new(Suit::Clubs, 11),
+            Card::new(Suit::Spades, 13),
+            Card::new(Suit::Diamonds, 4),
+        ];
+
+        let highest_hand_score = OnePlayerAllPossibleCards { cards: cards }.get_highest_hand_score();
+        assert_eq!(highest_hand_score.hand_type, HandType::Flush);
+    }
+
+    #[test]
+    fn test_get_highest_hand_score_full_house() {
+        let cards: Vec<Card> = vec![
+            Card::new(Suit::Clubs, 3),
+            Card::new(Suit::Spades, 3),
+            Card::new(Suit::Diamonds, 3),
+            Card::new(Suit::Hearts, 6),
+            Card::new(Suit::Spades, 6),
+            Card::new(Suit::Diamonds, 2),
+            Card::new(Suit::Clubs, 8),
+        ];
+
+        let highest_hand_score = OnePlayerAllPossibleCards { cards: cards }.get_highest_hand_score();
+        assert_eq!(highest_hand_score.hand_type, HandType::FullHouse);
+    }
+
+    #[test]
+    fn test_get_highest_hand_score_four_of_a_kind() {
+        let cards: Vec<Card> = vec![
+            Card::new(Suit::Clubs, 9),
+            Card::new(Suit::Spades, 9),
+            Card::new(Suit::Diamonds, 9),
+            Card::new(Suit::Hearts, 9),
+            Card::new(Suit::Clubs, 11),
+            Card::new(Suit::Spades, 3),
+            Card::new(Suit::Diamonds, 2),
+        ];
+
+        let highest_hand_score = OnePlayerAllPossibleCards { cards: cards }.get_highest_hand_score();
+        assert_eq!(highest_hand_score.hand_type, HandType::FourOfAKind);
+    }
+
+    #[test]
+    fn test_get_highest_hand_score_straight_flush() {
+        let cards: Vec<Card> = vec![
+            Card::new(Suit::Hearts, 5),
+            Card::new(Suit::Hearts, 6),
+            Card::new(Suit::Hearts, 7),
+            Card::new(Suit::Hearts, 8),
+            Card::new(Suit::Hearts, 9),
+            Card::new(Suit::Spades, 2),
+            Card::new(Suit::Diamonds, 3),
+        ];
+
+        let highest_hand_score = OnePlayerAllPossibleCards { cards: cards }.get_highest_hand_score();
+        assert_eq!(highest_hand_score.hand_type, HandType::StraightFlush);
+    }
+
+    #[test]
+    fn test_get_highest_hand_score_royal_flush() {
+        let cards: Vec<Card> = vec![
+            Card::new(Suit::Hearts, 10),
+            Card::new(Suit::Hearts, 11),
+            Card::new(Suit::Hearts, 12),
+            Card::new(Suit::Hearts, 13),
+            Card::new(Suit::Hearts, 14),
+            Card::new(Suit::Spades, 2),
+            Card::new(Suit::Diamonds, 3),
+        ];
+
+        let highest_hand_score = OnePlayerAllPossibleCards { cards: cards }.get_highest_hand_score();
+        assert_eq!(highest_hand_score.hand_type, HandType::RoyalFlush);
+    }
+
+    #[test]
+    fn test_compare_hand_scores() {
+        let cards_royal_flush = vec![
+            Card::new(Suit::Hearts, 10),
+            Card::new(Suit::Hearts, 11),
+            Card::new(Suit::Hearts, 12),
+            Card::new(Suit::Hearts, 13),
+            Card::new(Suit::Hearts, 14),
+            Card::new(Suit::Spades, 2),
+            Card::new(Suit::Diamonds, 3),
+        ];
+        let cards_straight_flush = vec![
+            Card::new(Suit::Hearts, 5),
+            Card::new(Suit::Hearts, 6),
+            Card::new(Suit::Hearts, 7),
+            Card::new(Suit::Hearts, 8),
+            Card::new(Suit::Hearts, 9),
+            Card::new(Suit::Spades, 2),
+            Card::new(Suit::Diamonds, 3),
+        ];
+        let cards_four_of_a_kind = vec![
+            Card::new(Suit::Clubs, 9),
+            Card::new(Suit::Spades, 9),
+            Card::new(Suit::Diamonds, 9),
+            Card::new(Suit::Hearts, 9),
+            Card::new(Suit::Clubs, 11),
+            Card::new(Suit::Spades, 3),
+            Card::new(Suit::Diamonds, 2),
+        ];
+        let cards_full_house = vec![
+            Card::new(Suit::Clubs, 3),
+            Card::new(Suit::Spades, 3),
+            Card::new(Suit::Diamonds, 3),
+            Card::new(Suit::Hearts, 6),
+            Card::new(Suit::Spades, 6),
+            Card::new(Suit::Diamonds, 2),
+            Card::new(Suit::Clubs, 8),
+        ];
+        let cards_flush = vec![
+            Card::new(Suit::Clubs, 2),
+            Card::new(Suit::Clubs, 5),
+            Card::new(Suit::Clubs, 7),
+            Card::new(Suit::Clubs, 9),
+            Card::new(Suit::Clubs, 11),
+            Card::new(Suit::Spades, 13),
+            Card::new(Suit::Diamonds, 4),
+        ];
+        let cards_straight = vec![
+            Card::new(Suit::Clubs, 4),
+            Card::new(Suit::Spades, 11),
+            Card::new(Suit::Clubs, 12),
+            Card::new(Suit::Diamonds, 10),
+            Card::new(Suit::Hearts, 8),
+            Card::new(Suit::Spades, 9),
+            Card::new(Suit::Diamonds, 3),
+        ];
+        let cards_three_of_a_kind = vec![
+            Card::new(Suit::Clubs, 4),
+            Card::new(Suit::Spades, 4),
+            Card::new(Suit::Diamonds, 4),
+            Card::new(Suit::Hearts, 9),
+            Card::new(Suit::Clubs, 11),
+            Card::new(Suit::Spades, 5),
+            Card::new(Suit::Diamonds, 2),
+        ];
+        let cards_two_pair = vec![
+            Card::new(Suit::Clubs, 3),
+            Card::new(Suit::Spades, 3),
+            Card::new(Suit::Diamonds, 6),
+            Card::new(Suit::Hearts, 6),
+            Card::new(Suit::Clubs, 9),
+            Card::new(Suit::Spades, 2),
+            Card::new(Suit::Diamonds, 7),
+        ];
+        let cards_pair = vec![
+            Card::new(Suit::Clubs, 4),
+            Card::new(Suit::Spades, 4),
+            Card::new(Suit::Diamonds, 7),
+            Card::new(Suit::Hearts, 9),
+            Card::new(Suit::Clubs, 11),
+            Card::new(Suit::Spades, 3),
+            Card::new(Suit::Diamonds, 2),
+        ];
+        let cards_high_card = vec![
+            Card::new(Suit::Clubs, 2),
+            Card::new(Suit::Spades, 5),
+            Card::new(Suit::Clubs, 7),
+            Card::new(Suit::Diamonds, 9),
+            Card::new(Suit::Hearts, 11),
+            Card::new(Suit::Spades, 13),
+            Card::new(Suit::Diamonds, 4),
+        ];
+
+        let royal_flush = OnePlayerAllPossibleCards { cards: cards_royal_flush }.get_highest_hand_score();
+        let straight_flush = OnePlayerAllPossibleCards { cards: cards_straight_flush }.get_highest_hand_score();
+        let four_of_a_kind = OnePlayerAllPossibleCards { cards: cards_four_of_a_kind }.get_highest_hand_score();
+        let full_house = OnePlayerAllPossibleCards { cards: cards_full_house }.get_highest_hand_score();
+        let flush = OnePlayerAllPossibleCards { cards: cards_flush }.get_highest_hand_score();
+        let straight = OnePlayerAllPossibleCards { cards: cards_straight }.get_highest_hand_score();
+        let three_of_a_kind = OnePlayerAllPossibleCards { cards: cards_three_of_a_kind }.get_highest_hand_score();
+        let two_pair = OnePlayerAllPossibleCards { cards: cards_two_pair }.get_highest_hand_score();
+        let pair = OnePlayerAllPossibleCards { cards: cards_pair }.get_highest_hand_score();
+        let high_card = OnePlayerAllPossibleCards { cards: cards_high_card }.get_highest_hand_score();
+
+        assert!(royal_flush > straight_flush);
+        assert!(straight_flush > four_of_a_kind);
+        assert!(four_of_a_kind > full_house);
+        assert!(full_house > flush);
+        assert!(flush > straight);
+        assert!(straight > three_of_a_kind);
+        assert!(three_of_a_kind > two_pair);
+        assert!(two_pair > pair);
+        assert!(pair > high_card);
     }
 }
 

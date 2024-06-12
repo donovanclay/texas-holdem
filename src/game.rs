@@ -7,6 +7,8 @@ use std::io::Write;
 use rand::prelude::IteratorRandom;
 use rand::seq::SliceRandom;
 
+use colored::Colorize;
+
 use crate::game::player::{Player, PlayerId};
 use crate::utils;
 
@@ -183,50 +185,83 @@ impl Game {
         }
 
         let max_round = 5;
-        let mut round = 0;
+        let mut round = 1;
 
-        // while self.players.len() > 1 && round < max_round {
-        self.bets.clear();
-        let mut deck = self.deal_hole_cards(debug);
-        self.deal_flop(&mut deck);
+        while self.players.len() > 1 && round < max_round {
+            println!("Starting round #{}", round);
 
-        // Deal the turn.
-        self.deal_single_card(&mut deck);
-        // Deal the river.
-        self.deal_single_card(&mut deck);
-        self.determine_winner();
-        self.dealer_location = (self.dealer_location + 1) % self.players.len() as i16;
-        // round += 1;
-        // self.players.rotate();
-        //  rotate the dealers and players queue
-        // }
+            self.play_one_round(debug);
+
+            self.dealer_location = (self.dealer_location + 1) % self.players.len() as i16;
+            round += 1;
+
+            // self.players_in_round.clear();
+
+            for player_id in self.players.iter() {
+                let player = self.player_id_to_player.get(player_id).expect(PLAYER_NOT_FOUND_ERROR);
+                if player.get_money() > 0 {
+                    self.players_in_round.push_back(*player_id);
+                }
+            }
+
+            if self.players_in_round.len() == 1 {
+                println!("There is a winner");
+                return;
+            }
+
+            // self.players.rotate();
+            // rotate the dealers and players queue
+        }
     }
 
-    /// Deals hole cards to each player and handles the small and big blinds.
+    fn play_one_round(&mut self, debug: bool) {
+
+        let mut deck = hand::Card::new_full_deck();
+
+        if !self.deal_hole_cards(&mut deck, debug) { self.clear_round_data(); return }
+
+        if !self.deal_flop(&mut deck, debug) {  self.clear_round_data(); return }
+
+        // Deal the turn.
+        if !self.deal_single_card(&mut deck, debug) {  self.clear_round_data(); return }
+
+        // Deal the river.
+        if !self.deal_single_card(&mut deck, debug) {  self.clear_round_data(); return }
+        self.determine_winner();
+    }
+
+    fn clear_round_data(&mut self) {
+        self.community_cards.clear();
+        self.players_in_round.clear();
+        self.curr_bet = 0;
+        self.bet_this_round.clear();
+        self.bets.clear();
+    }
+
+    /// Deals two hole cards to each player from the deck and initiates the first round of betting.
     ///
-    /// # Parameters
+    /// # Arguments
     ///
-    /// * `debug`: A `bool` indicating whether to print debug information.
+    /// * `deck` - A mutable reference to a `HashSet` of `hand::Card` representing the deck of cards.
+    /// * `debug` - A `bool` indicating whether debug information should be printed to the console.
     ///
     /// # Returns
     ///
-    /// A `HashSet` of `hand::Card`s representing the remaining deck after dealing the hole cards.
+    /// * `bool` - Returns `true` if a winner is determined during the first round of betting, otherwise returns `false`.
     ///
     /// # Panics
     ///
-    /// This function will panic if there are no players in the current round, or if a player tries to raise by an amount less than the current bet.
+    /// This function will panic if there are no players in the game, or if the deck runs out of cards.
     ///
     /// # Notes
     ///
     /// This function initializes a full deck of cards, deals two hole cards to each player, and handles the small and big blinds. It then calls `circle_players` to rotate through the players in the current round, prompting each to make a decision. After `circle_players` returns, it resets the current bet to 0.
     ///
     /// If `debug` is `true`, this function also prints debug information, such as the size of the deck, the number of players in the current round, the size of the blinds, and the hole cards of each player.
-    fn deal_hole_cards(&mut self, debug: bool) -> HashSet<hand::Card> {
+    fn deal_hole_cards(&mut self, deck: &mut HashSet<hand::Card>, debug: bool) -> bool {
 
-        // initialize the deck
-        let mut deck = hand::Card::new_full_deck();
         if debug {
-            println!("Size of deck: {}", deck.len());
+            println!("Dealing hole cards.");
         }
 
 
@@ -294,11 +329,11 @@ impl Game {
 
 
         self.has_raised = false;
-        self.circle_players(&mut Some(prev_contributions), &mut Some(prev_player), true);
+        let has_winner: bool = self.circle_players(&mut Some(prev_contributions), &mut Some(prev_player), true);
 
         self.curr_bet = 0;
 
-        deck
+        has_winner
     }
 
 
@@ -308,6 +343,10 @@ impl Game {
     ///
     /// * `deck`: A mutable reference to a `HashSet` of `hand::Card`s representing the current deck.
     ///
+    /// # Returns
+    ///
+    /// * `bool` - Returns `true` if a winner is determined during the second round of betting, otherwise returns `false`.
+    ///
     /// # Panics
     ///
     /// This function will panic if there are no cards left in the deck.
@@ -315,9 +354,11 @@ impl Game {
     /// # Notes
     ///
     /// This function randomly selects three cards from the deck, removes them from the deck, and adds them to the community cards. It then prints the community cards and the size of the deck. After that, it calls `circle_players` to rotate through the players in the current round, prompting each to make a decision. After `circle_players` returns, it resets the current bet to 0.
-    ///
-    /// This function does not return any value.
-    fn deal_flop(&mut self, deck: &mut HashSet<hand::Card>) {
+    fn deal_flop(&mut self, deck: &mut HashSet<hand::Card>, debug: bool) -> bool {
+        if debug {
+            println!("Dealing flop.");
+        }
+
         let mut community_cards = Vec::<hand::Card>::new();
 
         for _ in 0..3 {
@@ -328,15 +369,11 @@ impl Game {
 
         self.community_cards = community_cards.clone();
 
-        println!("Community cards: ");
-        for card in &self.community_cards {
-            println!("{:?}", card);
-        }
-        println!("Size of deck: {}", deck.len());
-
-        self.circle_players(&mut None, &mut None, false);
+        let has_winner: bool = self.circle_players(&mut None, &mut None, false);
 
         self.curr_bet = 0;
+
+        has_winner
     }
 
 
@@ -345,6 +382,11 @@ impl Game {
     /// # Parameters
     ///
     /// * `deck`: A mutable reference to a `HashSet` of `hand::Card`s representing the current deck.
+    ///
+    /// # Returns
+    ///
+    /// * `bool` - Returns `true` if a winner is determined during the third round of betting, otherwise returns `false`.
+    ///
     ///
     /// # Panics
     ///
@@ -355,23 +397,22 @@ impl Game {
     /// This function randomly selects a card from the deck, removes it from the deck, and adds it to the community cards. It then prints the community cards and the size of the deck. After that, it calls `circle_players` to rotate through the players in the current round, prompting each to make a decision. After `circle_players` returns, it resets the current bet to 0.
     ///
     /// This function is used for both dealing the turn and the river in a game of Texas Hold'em poker.
-    ///
-    /// This function does not return any value.
-    fn deal_single_card(&mut self, deck: &mut HashSet<hand::Card>) {
+    fn deal_single_card(&mut self, deck: &mut HashSet<hand::Card>, debug: bool) -> bool {
+        if debug {
+            println!("Dealing single cards.");
+        }
+
         let card = deck.iter().choose(&mut rand::thread_rng()).expect("Deck ran out of cards").clone();
         self.community_cards.push(card.clone());
         deck.remove(&card);
 
-        println!("Community cards: ");
-        for card in &self.community_cards {
-            println!("{:?}", card);
-        }
-        println!("Size of deck: {}", deck.len());
-
-        self.circle_players(&mut None, &mut None, false);
+        let has_winner: bool = self.circle_players(&mut None, &mut None, false);
 
         self.curr_bet = 0;
+
+        has_winner
     }
+
 
     fn determine_winner(&mut self) {
         // let mut best_hand = hand::Hand::new(HashSet::new());
@@ -437,17 +478,17 @@ impl Game {
     ///
     /// This function does not return any value.
     fn ask_player(&mut self, prev_contributions: &mut HashMap<PlayerId, i32>) {
+        Self::print_turn_state(&self);
         let community_vec = self.format_community_cards();
 
         let player_id = self.players_in_round.pop_front().expect(PLAYER_NOT_FOUND_ERROR);
         let (curr_money, curr_contribution) = {
             // Limiting the scope of the mutable borrow of self here
-            let player = self.player_id_to_player.get_mut(&player_id).expect(PLAYER_NOT_FOUND_ERROR);
+            let player = self.player_id_to_player.get(&player_id).expect(PLAYER_NOT_FOUND_ERROR);
             let curr_money = player.get_money();
             let curr_contribution = prev_contributions.get(&player.get_player_id()).cloned().unwrap_or(0);
 
             println!();
-
             Self::print_cards(community_vec, player);
             (curr_money, curr_contribution)
         };
@@ -511,7 +552,7 @@ impl Game {
     }
 
 
-    fn print_cards(mut community_vec: VecDeque<String>, player: &mut Player) {
+    fn print_cards(mut community_vec: VecDeque<String>, player: &Player) {
         let mut player_vec = player.format_hole_cards();
         player_vec.push_front(utils::get_dashes_for_longest_string(player_vec.clone()));
         player_vec.push_front("Your Cards".to_string());
@@ -539,25 +580,28 @@ impl Game {
 
     /// Rotates through the players in the current round, prompting each to make a decision.
     ///
-    /// # Parameters
+    /// # Arguments
     ///
-    /// * `prev_contributions_option`: A mutable reference to an `Option` that may contain a `HashMap` mapping `PlayerId`s to the amount they have contributed to the pot in the current round.
-    /// * `prev_player`: A mutable reference to an `Option` that may contain the `PlayerId` of the previous player.
-    /// * `is_dealing_hold_cards`: A `bool` indicating whether the function is being called while dealing hole cards.
+    /// * `prev_contributions_option` - A mutable reference to an `Option` that may contain a `HashMap` mapping `PlayerId`s to the amount they have contributed to the pot in the current round.
+    /// * `prev_player` - A mutable reference to an `Option` that may contain the `PlayerId` of the previous player.
+    /// * `is_dealing_hold_cards` - A `bool` indicating whether the function is being called while dealing hole cards.
+    ///
+    /// # Returns
+    ///
+    /// * `bool` - Returns `false` if there is only one player left in the round, otherwise returns `true`.
     ///
     /// # Panics
     ///
     /// This function will panic if there are no players in the current round, or if a player tries to raise by an amount less than the current bet.
     ///
-    /// # Notes
+    /// # Behavior
     ///
     /// This function rotates through the players in the current round, prompting each to make a decision until a condition to break the loop is met. The conditions to break the loop are:
     /// 1. There is only one player left in the round.
     /// 2. The last player to raise has been asked and all players have been asked at least once since the last raise.
     /// 3. All players have been asked at least once and the last player to be asked has matched the current bet.
     ///
-    /// This function does not return any value.
-    fn circle_players(&mut self, prev_contributions_option: &mut Option<HashMap<PlayerId, i32>>,  prev_player: &mut Option<PlayerId>, is_dealing_hold_cards: bool) {
+    fn circle_players(&mut self, prev_contributions_option: &mut Option<HashMap<PlayerId, i32>>,  prev_player: &mut Option<PlayerId>, is_dealing_hold_cards: bool) -> bool{
         self.bet_this_round.clear();
 
         let mut prev_contributions: HashMap<PlayerId, i32>;
@@ -574,8 +618,7 @@ impl Game {
 
         loop {
             if self.players_in_round.len() == 1 {
-                println!("there is a WINNDER!!");
-                break;
+                return false;
             }
             self.ask_player(&mut prev_contributions);
             let player_id = self.players_in_round.front().expect(PLAYER_NOT_FOUND_ERROR).clone();
@@ -593,17 +636,13 @@ impl Game {
                     }
                 },
                 None => {
-                    println!("hello");
                 }
             }
 
             *prev_player = Some(player.get_player_id());
         }
 
-        println!();
-        println!("Current size of pot: {}", self.pot);
-        println!("Current bet: {}", self.curr_bet);
-        println!();
+        true
     }
 
 
@@ -633,7 +672,4 @@ impl Game {
         self.bets.insert(player_id, *self.bets.get(&player_id).unwrap_or(&0) + bet);
         self.pot += bet;
     }
-
-
-
 }

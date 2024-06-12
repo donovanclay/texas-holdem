@@ -211,7 +211,7 @@ fn test4(ask_for_chip_sizes: bool, debug: bool) {
     }
 
     let game_id = utils::get_unique_id(&game_ids);
-    let mut game = game::Game::new(game_id, 100);
+    let mut game = game::Game::new(game_id, 2);
 
     for _ in 0..num_players {
         let player_id = utils::get_unique_id(&player_ids);
