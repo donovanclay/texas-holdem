@@ -192,10 +192,14 @@ impl Game {
 
             self.play_one_round(debug);
 
+            // rotate the dealers and players queue
+            self.players.rotate_left(1);
+
             self.dealer_location = (self.dealer_location + 1) % self.players.len() as i16;
             round += 1;
 
             // self.players_in_round.clear();
+
 
             for player_id in self.players.iter() {
                 let player = self.player_id_to_player.get(player_id).expect(PLAYER_NOT_FOUND_ERROR);
@@ -209,8 +213,7 @@ impl Game {
                 return;
             }
 
-            // self.players.rotate();
-            // rotate the dealers and players queue
+
         }
     }
 
@@ -231,6 +234,7 @@ impl Game {
     }
 
     fn clear_round_data(&mut self) {
+        self.pot = 0;
         self.community_cards.clear();
         self.players_in_round.clear();
         self.curr_bet = 0;
