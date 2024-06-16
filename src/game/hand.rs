@@ -1,8 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::collections::HashSet;
 use std::iter::zip;
 
 use combinations::Combinations;
+use crate::game::hand;
+use crate::game::player::{Player, PlayerId};
 
 #[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Copy)]
 pub enum Suit {
@@ -60,7 +62,7 @@ impl Card {
 
 impl std::fmt::Display for Card {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if (self.value >= 2 && self.value <= 10) {
+        if self.value >= 2 && self.value <= 10 {
             write!(f, "{} of {}", self.value, self.suit)
         } else {
             let value_str = match self.value {
@@ -599,6 +601,19 @@ pub struct OnePlayerAllPossibleCards {
     cards: Vec<Card>
 }
 
+impl std::fmt::Display for OnePlayerAllPossibleCards {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // let mut output = VecDeque::<String>::new();
+        let mut output = String::new();
+        for card in self.cards.iter() {
+            output += &*(card.to_string() + "\n");
+            // output.push_back(card.to_string());
+        }
+
+        write!(f, "{}", output)
+    }
+}
+
 impl OnePlayerAllPossibleCards {
 
     pub fn new(all_cards: Vec<Card>) -> OnePlayerAllPossibleCards {
@@ -611,6 +626,7 @@ impl OnePlayerAllPossibleCards {
             cards: all_cards.clone()
         }
     }
+
 
     pub fn add_card(&mut self, card: Card) {
         self.cards.push(card);
@@ -635,6 +651,14 @@ impl OnePlayerAllPossibleCards {
         }
 
         highest_hand_score
+    }
+
+    pub fn get_winner(hands: &HashMap<PlayerId, OnePlayerAllPossibleCards>) -> PlayerId {
+
+        *hands.iter()
+            .max_by_key(|&(_, ref seven_cards)| seven_cards.get_highest_hand_score())
+            .unwrap()
+            .0
     }
 }
 

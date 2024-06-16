@@ -211,7 +211,15 @@ fn test4(ask_for_chip_sizes: bool, debug: bool) {
     }
 
     let game_id = utils::get_unique_id(&game_ids);
-    let mut game = game::Game::new(game_id, 2);
+    let mut game = game::Game::new(game_id, 2, 1000);
+
+    // let moneys = vec![125, 50, 75, 125, 50, 75];
+    // for i in 0..6 {
+    //     let player_id = utils::get_unique_id(&player_ids);
+    //     player_ids.insert(player_id);
+    //     let player_name = format!("Player#{}", player_id);
+    //     game.add_player(game::player::Player::new(player_id, player_name, *moneys.get(i).unwrap()));
+    // }
 
     for _ in 0..num_players {
         let player_id = utils::get_unique_id(&player_ids);

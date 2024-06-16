@@ -1,5 +1,6 @@
 use std::cmp::max;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
+use std::collections::btree_map::Keys;
 use std::collections::HashMap;
 use std::io;
 use std::io::Write;
@@ -8,6 +9,7 @@ use rand::prelude::IteratorRandom;
 use rand::seq::SliceRandom;
 
 use colored::Colorize;
+use crate::game::hand::{Card, OnePlayerAllPossibleCards};
 
 use crate::game::player::{Player, PlayerId};
 use crate::utils;
@@ -30,54 +32,58 @@ const PLAYER_NOT_FOUND_ERROR: &str = "Expected another player in the round. Ther
 /// * `player_id_to_player`: A `HashMap` that maps `PlayerId`s to `Player`s.
 /// * `big_blind`: An `i32` that represents the big blind amount.
 /// * `dealer_location`: An `i16` that represents the index of the dealer in the `players` `VecDeque`.
-/// * `pot`: An `i32` that represents the current pot amount.
 /// * `community_cards`: A `Vec` of `hand::Card`s that represents the community cards.
 /// * `curr_bet`: An `i32` that represents the current bet amount.
 /// * `last_player_to_raise`: A `PlayerId` that represents the last player to raise.
 /// * `bet_this_round`: A `HashSet` of `PlayerId`s that represents the players who have bet in this round.
 /// * `has_raised`: A `bool` that indicates whether a player has raised in the current round.
 /// * `bets`: A `HashMap` that maps `PlayerId`s to the amount they have bet.
+/// * `pots`: A `BTreeMap` that maps from a bet amount to the players that have bet that amount.
 pub struct Game {
     game_id: i32,
     num_players: i32,
     players: VecDeque<PlayerId>,
-    players_in_round: VecDeque<PlayerId>,
+    players_in_round: HashSet<PlayerId>,
+    turn_queue: VecDeque<PlayerId>,
     player_id_to_player: HashMap<PlayerId, Player>,
     big_blind: i32,
+    initial_money: i32,
     dealer_location: i16,
-    pot: i32,
     community_cards: Vec<hand::Card>,
     curr_bet: i32,
     last_player_to_raise: PlayerId,
     bet_this_round: HashSet<PlayerId>,
     has_raised: bool,
-    bets: HashMap<PlayerId, i32>
+    bets: HashMap<PlayerId, i32>,
+    /// A `BTreeMap` that maps from a bet amount to the players that have bet that amount.
+    pots: BTreeMap<i32, HashSet<PlayerId>>,
 }
 
 
 impl Game {
-    pub fn new(game_id: i32, big_blind: i32) -> Game {
+    pub fn new(game_id: i32, big_blind: i32, initial_money: i32) -> Game {
         Game {
             game_id,
             num_players: 0,
             players: VecDeque::new(),
-            players_in_round: VecDeque::new(),
+            players_in_round: HashSet::new(),
+            turn_queue: VecDeque::new(),
             player_id_to_player: HashMap::new(),
             big_blind,
+            initial_money,
             dealer_location: 0,
-            pot: 0,
             community_cards: Vec::<hand::Card>::new(),
             curr_bet: big_blind,
             last_player_to_raise: 0,
             bet_this_round: HashSet::new(),
             has_raised: false,
-            bets: HashMap::new()
+            bets: HashMap::new(),
+            pots: BTreeMap::new(),
         }
     }
 
     pub fn add_player(&mut self, player: Player) {
         self.players.push_back(player.get_player_id());
-        self.players_in_round.push_back(player.get_player_id());
         self.player_id_to_player.insert(player.get_player_id(), player.clone());
         self.num_players += 1;
     }
@@ -144,24 +150,70 @@ impl Game {
     /// game.print_turn_state();
     /// ```
     fn print_turn_state(&self) {
-        let players = self.players_in_round.clone();
-        let width =  players.front().expect(PLAYER_NOT_FOUND_ERROR).to_string().len() / 2;
+        if self.turn_queue.len() == 0 {
+            return;
+        }
 
-        let players_str = players.iter()
-            .map(|player| player.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
+        let players = self.turn_queue.clone();
+        let width =  players.front().expect(PLAYER_NOT_FOUND_ERROR).to_string().len() / 2
+            + "Player: ".len();
+
+        let mut output = VecDeque::<VecDeque<String>>::new();
+
+        players.iter().enumerate()
+            .for_each(|(i, player)| {
+                let player_str = player.to_string();
+                let player_contribution = self.bets.get(player).unwrap_or(&0).to_string();
+                let player_money = self.player_id_to_player.get(player).expect(PLAYER_NOT_FOUND_ERROR).get_money().to_string();
+
+                let mut this_output = VecDeque::<String>::new();
+
+                if i == 0 {
+                    this_output.push_back(" ".repeat(width) + "|");
+                    this_output.push_back(" ".repeat(width) + "|");
+                    this_output.push_back(" ".repeat(width) + "v");
+                    // this_output.push_back(" ".repeat(width) + "a");
+                    // this_output.push_back("Next to go.".to_string());
+                } else {
+                    for _ in 0..3 {
+                        this_output.push_back("".to_string());
+                    }
+                }
+
+                this_output.push_back("Player: ".to_string() + &*player_str);
+                this_output.push_back("Contribution: ".to_string() + &*player_contribution);
+                this_output.push_back("Money: ".to_string() + &*player_money);
+
+                output.push_back(this_output);
+            });
+            // .collect::<Vec<_>>()
+            // .join(", ");
+
+        // let turn_state = " Turn State ";
+        //
+        // let dashes = "-".repeat((max((players_str.len() as i32) - (turn_state.len() as i32), 0) / 2) as usize);
+        //
+        // println!();
+        // println!("{}", dashes.clone() + turn_state + &dashes);
+        // println!("{}", " ".repeat(width) + "|");
+        // println!("{}", " ".repeat(width) + "|");
+        // println!("{}", " ".repeat(width) + "▼");
+        // println!("{}", players_str);
+        // println!();
+
+        let output_str = utils::format_next_to_each_other(output);
 
         let turn_state = " Turn State ";
-        let dashes = "-".repeat(max(players_str.len() - turn_state.len(), 0) / 2);
+
+        let num_dashes_total = output_str.split("\n").collect::<Vec<&str>>().iter().map(|str| str.len()).max().expect("Error in calculating dashes");
+
+        let dashes = "-".repeat((max((num_dashes_total as i32) - (turn_state.len() as i32), 0) / 2) as usize);
 
         println!();
         println!("{}", dashes.clone() + turn_state + &dashes);
-        println!("{}", " ".repeat(width) + "|");
-        println!("{}", " ".repeat(width) + "|");
-        println!("{}", " ".repeat(width) + "▼");
-        println!("{}", players_str);
-        println!();
+        println!("{}", output_str);
+
+        // println!("------------------ Turn State ------------------\n{}", output_str);
     }
 
     /// Starts the game and handles the main game loop.
@@ -191,6 +243,7 @@ impl Game {
             println!("Starting round #{}", round);
 
             self.play_one_round(debug);
+            // assert_eq!(self.get_total_player_money(), self.players.len() as i32 * self.initial_money, "Incorrect amount of money in the game");
 
             // rotate the dealers and players queue
             self.players.rotate_left(1);
@@ -201,15 +254,21 @@ impl Game {
             // self.players_in_round.clear();
 
 
-            for player_id in self.players.iter() {
-                let player = self.player_id_to_player.get(player_id).expect(PLAYER_NOT_FOUND_ERROR);
-                if player.get_money() > 0 {
-                    self.players_in_round.push_back(*player_id);
-                }
-            }
 
-            if self.players_in_round.len() == 1 {
+            // for player_id in self.players.iter() {
+            //     let player = self.player_id_to_player.get(player_id).expect(PLAYER_NOT_FOUND_ERROR);
+            //     if player.get_money() > 0 {
+            //         self.turn_queue.push_back(*player_id);
+            //     }
+            // }
+
+            if self.turn_queue.len() == 1 {
                 println!("There is a winner");
+                for player_id in self.players.iter() {
+                    let player = self.player_id_to_player.get(player_id).expect(PLAYER_NOT_FOUND_ERROR);
+
+                    dbg!(player);
+                }
                 return;
             }
 
@@ -219,24 +278,31 @@ impl Game {
 
     fn play_one_round(&mut self, debug: bool) {
 
+        // // Initialize the pots map.
+        // self.pots.insert(BTreeSet::from_iter(self.players.iter().cloned().collect::<Vec<_>>()), 0);
+
         let mut deck = hand::Card::new_full_deck();
 
-        if !self.deal_hole_cards(&mut deck, debug) { self.clear_round_data(); return }
+        if !self.deal_hole_cards(&mut deck, debug) { self.determine_winner(); self.clear_round_data(); return }
 
-        if !self.deal_flop(&mut deck, debug) {  self.clear_round_data(); return }
+        if !self.deal_flop(&mut deck, debug) { self.determine_winner(); self.clear_round_data(); return }
 
         // Deal the turn.
-        if !self.deal_single_card(&mut deck, debug) {  self.clear_round_data(); return }
+        if !self.deal_single_card(&mut deck, debug) { self.determine_winner(); self.clear_round_data(); return }
 
         // Deal the river.
-        if !self.deal_single_card(&mut deck, debug) {  self.clear_round_data(); return }
+        if !self.deal_single_card(&mut deck, debug) { self.determine_winner(); self.clear_round_data(); return }
+
         self.determine_winner();
+        self.clear_round_data();
     }
 
     fn clear_round_data(&mut self) {
-        self.pot = 0;
+        // TODO fix this;
+        self.pots.clear();
         self.community_cards.clear();
         self.players_in_round.clear();
+        self.turn_queue.clear();
         self.curr_bet = 0;
         self.bet_this_round.clear();
         self.bets.clear();
@@ -268,15 +334,20 @@ impl Game {
             println!("Dealing hole cards.");
         }
 
-
-        // initialize the previous contributions map
+        // Initialize the previous contributions map.
         let mut prev_contributions = HashMap::<PlayerId, i32>::new();
 
         // deal the hole cards to each player
-        for _ in 0..self.players.len() {
-            let mut player_id = self.players.pop_front().expect(PLAYER_NOT_FOUND_ERROR);
+        // for _ in 0..self.players.len() {
+        for &player_id in self.players.iter() {
+            // let player_id = self.players.pop_front().expect(PLAYER_NOT_FOUND_ERROR);
             let mut player = self.player_id_to_player.get_mut(&player_id).expect(PLAYER_NOT_FOUND_ERROR);
-            let mut hole_cards = Vec::<hand::Card>::new();
+
+            if (player.get_money() == 0) {
+                continue
+            }
+
+            let mut hole_cards = Vec::<Card>::new();
             for _ in 0..2 {
                 let card = deck.iter().choose(&mut rand::thread_rng()).expect("Deck ran out of cards").clone();
                 hole_cards.push(card);
@@ -284,22 +355,11 @@ impl Game {
             }
 
             player.set_hole_cards(hole_cards.clone());
-            self.players.push_back(player.get_player_id());
+            self.turn_queue.push_back(player_id);
+            self.players_in_round.insert(player_id);
         }
 
-        // print out the hole cards for each player
-        for _ in 0..self.players.len() {
-            let player_id = self.players.pop_front().expect(PLAYER_NOT_FOUND_ERROR);
-            let player = self.player_id_to_player.get(&player_id).expect(PLAYER_NOT_FOUND_ERROR).clone();
-
-            if debug {
-                println!("Player {} has hole cards: {:?}", player.get_name(), player.get_hole_cards());
-            }
-
-            self.players.push_back(player.get_player_id());
-        }
-
-        let num_players_in_round = self.players_in_round.len() as i32;
+        let num_players_in_round = self.turn_queue.len() as i32;
 
         if debug {
             println!("Size of deck: {}", deck.len());
@@ -307,29 +367,28 @@ impl Game {
             println!("Size of blinds: {}, {}", self.big_blind, self.big_blind / 2);
         }
 
-
         // have the small blind and big blind pay
         let mut prev_player: PlayerId;
 
-        let player_id = self.players_in_round.pop_front().expect(PLAYER_NOT_FOUND_ERROR);
+        let player_id = self.turn_queue.pop_front().expect(PLAYER_NOT_FOUND_ERROR);
         prev_player = player_id;
 
+
+        self.make_player_bet(player_id, self.big_blind / 2, 0);
         prev_contributions.insert(player_id, self.big_blind / 2);
-        self.make_player_bet(player_id, self.big_blind / 2);
 
         self.last_player_to_raise = player_id;
-        self.players_in_round.push_back(player_id);
+        self.turn_queue.push_back(player_id);
 
-        let player_id = self.players_in_round.pop_front().expect(PLAYER_NOT_FOUND_ERROR);
+        let player_id = self.turn_queue.pop_front().expect(PLAYER_NOT_FOUND_ERROR);
 
         prev_player = player_id;
 
+        self.make_player_bet(player_id, self.big_blind, 0);
         prev_contributions.insert(player_id, self.big_blind);
 
-        self.make_player_bet(player_id, self.big_blind);
-
         self.last_player_to_raise = player_id;
-        self.players_in_round.push_back(player_id);
+        self.turn_queue.push_back(player_id);
 
 
         self.has_raised = false;
@@ -419,50 +478,79 @@ impl Game {
 
 
     fn determine_winner(&mut self) {
-        // let mut best_hand = hand::Hand::new(HashSet::new());
-        let mut best_player_id: PlayerId = self.players_in_round.front().expect(PLAYER_NOT_FOUND_ERROR).clone();
-        let mut best_score: Option<hand::HandScore> = None;
+        dbg!(&self.turn_queue);
+        dbg!(&self.players_in_round);
 
-        for _ in 0..self.players_in_round.len() {
-            let player_id = self.players_in_round.pop_front().expect(PLAYER_NOT_FOUND_ERROR);
-            let player = self.player_id_to_player.get(&player_id).expect(PLAYER_NOT_FOUND_ERROR).clone();
-            let mut all_cards = Vec::<hand::Card>::new();
+        if self.players_in_round.len() == 1 {
 
-            for card in player.get_hole_cards() {
-                all_cards.push(card.clone());
-            }
+            let money_earned = self.bets.values().sum();
+            let player_id = self.players_in_round.iter().next().expect(PLAYER_NOT_FOUND_ERROR);
+            let mut player: &mut Player = self.player_id_to_player.get_mut(player_id).expect(PLAYER_NOT_FOUND_ERROR);
 
-            for card in &self.community_cards {
-                all_cards.push(card.clone());
-            }
+            player.increment_money(money_earned);
+            return;
+        }
 
-            let all_cards = hand::OnePlayerAllPossibleCards::new(all_cards);
-            let hand_score = all_cards.get_highest_hand_score();
 
-            match best_score {
-                Some(ref mut best_score) => {
-                    if hand_score > *best_score {
-                        // best_hand = hand;
-                        best_player_id = player_id.clone();
-                        *best_score = hand_score;
-                    }
-                },
-                None => {
-                    // best_hand = hand;
-                    best_player_id = player_id.clone();
-                    best_score = Some(hand_score);
+
+
+        let possible_winners = self.players_in_round.iter().cloned().collect::<HashSet<PlayerId>>();
+
+        let mut winners: HashMap<i32, PlayerId> = HashMap::new();
+
+        for (i, (pot, players)) in self.pots.iter().enumerate() {
+            let player_to_seven_cards: HashMap<PlayerId, OnePlayerAllPossibleCards> = players.iter()
+                .filter(|&p| possible_winners.contains(p))
+                .fold(HashMap::<PlayerId, OnePlayerAllPossibleCards>::new(), |mut map, player_id| {
+                    let player: &Player = self.player_id_to_player.get(player_id).expect(PLAYER_NOT_FOUND_ERROR);
+
+                    let seven_cards_vec: Vec<Card> = player.get_hole_cards().iter()
+                        .chain(self.community_cards.iter())
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    let seven_cards: OnePlayerAllPossibleCards = OnePlayerAllPossibleCards::new(seven_cards_vec);
+
+                    map.insert(*player_id, seven_cards);
+                    map
+                });
+
+            let winner_id: PlayerId = OnePlayerAllPossibleCards::get_winner(&player_to_seven_cards);
+
+            // let winner = self.player_id_to_player.get(&winner_id).expect(PLAYER_NOT_FOUND_ERROR);
+
+            winners.insert(*pot, winner_id);
+            // winner.increment_money(*pot);
+            //
+            // if i == self.pots.len() - 1 {
+            //     println!("The winner is: {}", winner.get_name());
+            //     println!("With a hand of: {}", player_to_seven_cards.get(&winner_id).expect(PLAYER_NOT_FOUND_ERROR).to_string());
+            //     println!("They now have: {}", winner.get_money());
+            // }
+        }
+
+        for (player_id, bet) in self.bets.iter().filter(|(id, _)| { possible_winners.contains(id) }) {
+            let smaller_bets = self.pots.keys().filter(|&x| x <= bet).cloned().collect::<Vec<_>>();
+
+            let mut sofar = 0;
+            let mut multiplier = 1;
+
+            for &sub_bet in smaller_bets.iter().rev() {
+                if winners.get(&sub_bet).expect("Bet value was not found in winners map") != player_id {
+                    sofar = max(sofar - sub_bet, 0);
+                    break;
+                }
+
+                if sub_bet > sofar {
+                    sofar = sub_bet;
+                    multiplier = self.pots.get(&sub_bet).expect("Bet value was not found in pots map").len()
                 }
             }
 
-            self.players.push_back(player_id);
+            let money_earned = sofar * (multiplier as i32);
+
+            let player = self.player_id_to_player.get_mut(player_id).expect(PLAYER_NOT_FOUND_ERROR);
+            player.increment_money(money_earned);
         }
-
-        let best_player = self.player_id_to_player.get_mut(&best_player_id).expect(PLAYER_NOT_FOUND_ERROR);
-        best_player.set_money(best_player.get_money() + self.pot);
-
-        println!("The winner is: {}", best_player.get_name());
-        println!("With a hand of: {}", best_score.expect("Error calculating the best score."));
-        println!("They now have: {}", best_player.get_money());
     }
 
 
@@ -485,7 +573,7 @@ impl Game {
         Self::print_turn_state(&self);
         let community_vec = self.format_community_cards();
 
-        let player_id = self.players_in_round.pop_front().expect(PLAYER_NOT_FOUND_ERROR);
+        let player_id = self.turn_queue.pop_front().expect(PLAYER_NOT_FOUND_ERROR);
         let (curr_money, curr_contribution) = {
             // Limiting the scope of the mutable borrow of self here
             let player = self.player_id_to_player.get(&player_id).expect(PLAYER_NOT_FOUND_ERROR);
@@ -499,13 +587,19 @@ impl Game {
 
         self.print_pot_state(player_id, curr_money, curr_contribution);
 
+        if curr_money == 0 {
+            println!("Skipping your turn because you went all in.");
+            self.turn_queue.push_back(player_id);
+            return;
+        }
+
         let player = self.player_id_to_player.get(&player_id).expect(PLAYER_NOT_FOUND_ERROR);
         let prev_contribution = prev_contributions.get(&player_id).cloned().unwrap_or(0);
 
         // prompt the player
         match self.curr_bet.checked_sub(prev_contribution).expect("Something went wrong here") {
-            0 => print!("{}, Would you like to fold, raise, or check? ", player.get_name()),
-            _ => print!("{}, Would you like to fold, raise, or call? ", player.get_name())
+            0 => print!("{}, Would you like to fold, raise, go all in, or check? ", player.get_name()),
+            _ => print!("{}, Would you like to fold, raise, go all in, or call? ", player.get_name())
         }
         io::stdout().flush().unwrap();
         let mut input = String::new();
@@ -514,7 +608,22 @@ impl Game {
 
 
         match input {
-            "fold" => println!("{} has folded", player.get_name()),
+            "fold" => {
+                // match self.bets.get(&player_id) {
+                //     Some(prev_bet) => {
+                //         self.pots
+                //             .iter_mut()
+                //             .for_each( |(bet, mut player_ids)|
+                //                 if *bet <= *prev_bet {
+                //                     // self.pots.get_mut(bet).unwrap().remove(&player_id);
+                //                     player_ids.remove(&player_id);
+                //                 }
+                //             )
+                //     }
+                //     None => {}
+                // }
+                self.players_in_round.remove(&player_id);
+            },
             "raise" => {
                 print!("Raise by how much? ");
                 io::stdout().flush().unwrap();
@@ -527,16 +636,22 @@ impl Game {
                     panic!("Raise must be at least {}", self.curr_bet);
                 }
 
-
                 let this_bet = input - prev_contribution;
 
-                self.make_player_bet(player_id, this_bet);
+                self.make_player_bet(player_id, input, prev_contribution);
 
                 prev_contributions.insert(player_id, prev_contribution + this_bet);
                 self.bet_this_round.insert(player_id);
-                self.players_in_round.push_back(player_id);
+                self.turn_queue.push_back(player_id);
 
                 self.has_raised = true;
+            },
+            "all in" => {
+                self.handle_all_in(&player_id, prev_contribution);
+                // prev_contributions.insert(player_id, *self.bets.get(&player_id).expect(PLAYER_NOT_FOUND_ERROR));
+                // self.prev_contributions.
+                // self.bet_this_round.insert(player_id);
+                // self.turn_queue.push_back(player_id);
             },
             _ => {
                 match self.curr_bet {
@@ -546,13 +661,43 @@ impl Game {
                 // let prev_contribution = prev_contributions.get(&player_id).cloned().unwrap_or(0);
                 let this_bet = self.curr_bet - prev_contribution;
 
-                self.make_player_bet(player_id, this_bet);
+                self.make_player_bet(player_id, self.curr_bet, prev_contribution);
 
                 prev_contributions.insert(player_id, prev_contribution + this_bet);
                 self.bet_this_round.insert(player_id);
-                self.players_in_round.push_back(player_id);
+                self.turn_queue.push_back(player_id);
             }
         };
+    }
+
+    fn handle_all_in(&mut self, player_id: &PlayerId, prev_contribution: i32) {
+        let player: &Player = self.player_id_to_player.get(player_id).expect(PLAYER_NOT_FOUND_ERROR);
+        let all_in_amount: i32 = player.get_money() + self.bets.get(player_id).unwrap_or(&0);
+
+        // self.add_to_all_bets_up_to_highest(player_id, all_in_amount);
+        self.make_player_bet(*player_id, all_in_amount, prev_contribution);
+
+        let higher_bets: Vec<i32> = self.pots.keys().filter(|&&pot| pot > all_in_amount).cloned().collect();
+
+        let players_with_higher_bets: HashSet<PlayerId> = higher_bets
+            .iter()
+            .fold(HashSet::new(), |mut acc: HashSet<PlayerId>, bet| {
+                acc.extend(self.pots.get_mut(bet).expect("Expected to find bet in pot map").iter());
+                acc
+            });
+
+        players_with_higher_bets
+            .iter()
+            .for_each(
+                |player: &PlayerId| {
+                    self.pots.get_mut(&all_in_amount).expect("Expected to find bet in pot map").insert(*player);
+            });
+
+
+        //
+        // self.
+        // self.bets.insert(*player_id, all_in_amount);
+        // self.curr_bet = max(self.curr_bet, all_in_amount);
     }
 
 
@@ -563,20 +708,22 @@ impl Game {
 
         community_vec.push_front("-".repeat(community_vec.iter().max_by_key(|x| { x.len() }).expect("Error here").len()));
         community_vec.push_front("Community Cards:".to_string());
-        let cards_display_str = utils::print_next_to_each_other(vec!(player_vec, community_vec));
+        let cards_display_str = utils::format_next_to_each_other(vec!(player_vec, community_vec));
         println!("{}", cards_display_str);
         println!();
     }
 
 
     fn print_pot_state(&mut self, player_id: PlayerId, curr_money: i32, curr_contribution: i32) {
-        let pot_str = vec!["Pot".to_string(), utils::dashes(6), self.pot.to_string()];
+        // let pot_str = vec!["Pot".to_string(), utils::dashes(6), self.pot.to_string()];
+        dbg!(&self.pots);
+        // let pot_str = vec!["Pot".to_string(), utils::dashes(6), self.get_total_pot_size().to_string()];
         let bet_str = vec!["Table's Current Bet".to_string(), utils::dashes(18), self.curr_bet.to_string()];
         let money_in_pot_str = vec!["Your Contribution to the Pot".to_string(), utils::dashes(29), self.bets.get(&player_id).unwrap_or(&0).to_string()];
         let curr_bet_contribution = vec!["Your Current Contribution to the Bet".to_string(), utils::dashes(37), curr_contribution.to_string()];
         let money_str = vec!["Your Money".to_string(), utils::dashes(15), curr_money.to_string()];
 
-        let output = utils::print_next_to_each_other(vec![pot_str, bet_str, money_in_pot_str, curr_bet_contribution, money_str]);
+        let output = utils::format_next_to_each_other(vec![bet_str, money_in_pot_str, curr_bet_contribution, money_str]);
         println!("{}", output);
         println!();
     }
@@ -606,6 +753,11 @@ impl Game {
     /// 3. All players have been asked at least once and the last player to be asked has matched the current bet.
     ///
     fn circle_players(&mut self, prev_contributions_option: &mut Option<HashMap<PlayerId, i32>>,  prev_player: &mut Option<PlayerId>, is_dealing_hold_cards: bool) -> bool{
+
+        if self.turn_queue.len() == 0 {
+            return true;
+        }
+
         self.bet_this_round.clear();
 
         let mut prev_contributions: HashMap<PlayerId, i32>;
@@ -620,22 +772,34 @@ impl Game {
         }
 
 
+        let mut count = 0;
+
         loop {
+            if count == 20 {break}
+
             if self.players_in_round.len() == 1 {
                 return false;
             }
+
+
+
             self.ask_player(&mut prev_contributions);
-            let player_id = self.players_in_round.front().expect(PLAYER_NOT_FOUND_ERROR).clone();
+
+            if self.turn_queue.len() == 0 {
+                return true;
+            }
+
+            let player_id = self.turn_queue.front().expect(PLAYER_NOT_FOUND_ERROR).clone();
             let player = self.player_id_to_player.get(&player_id).expect(PLAYER_NOT_FOUND_ERROR).clone();
 
 
             match prev_player {
                 Some(prev_player) => {
-                    if self.has_raised && player.get_player_id() == self.last_player_to_raise && self.bet_this_round.len() >= self.players_in_round.len() {
+                    if self.has_raised && player.get_player_id() == self.last_player_to_raise && self.bet_this_round.len() >= self.turn_queue.len() {
                         break;
                     }
 
-                    if *prev_player == self.last_player_to_raise && prev_contributions.get(&player.get_player_id()).cloned().unwrap_or(0) == self.curr_bet && self.bet_this_round.len() >= self.players_in_round.len() {
+                    if *prev_player == self.last_player_to_raise && prev_contributions.get(&player.get_player_id()).cloned().unwrap_or(0) == self.curr_bet && self.bet_this_round.len() >= self.turn_queue.len() {
                         break;
                     }
                 },
@@ -644,6 +808,7 @@ impl Game {
             }
 
             *prev_player = Some(player.get_player_id());
+            count += 1;
         }
 
         true
@@ -665,15 +830,84 @@ impl Game {
     ///
     /// This function updates the player's money, the current bet, the last player to raise, the player's total bet, and the pot.
     /// If the bet is greater than the current bet, the player becomes the last player to raise and the current bet is updated.
-    fn make_player_bet(&mut self, player_id: PlayerId, bet: i32) {
+    fn make_player_bet(&mut self, player_id: PlayerId, bet: i32, prev_contribution: i32) {
+        let difference = bet - prev_contribution;
         let mut player = self.player_id_to_player.get_mut(&player_id).expect(PLAYER_NOT_FOUND_ERROR);
-        player.set_money(player.get_money() - bet);
+        player.set_money(player.get_money() - difference);
         if bet > self.curr_bet {
             self.curr_bet = bet;
             self.last_player_to_raise = player.get_player_id();
         }
         let player_id = player.get_player_id();
         self.bets.insert(player_id, *self.bets.get(&player_id).unwrap_or(&0) + bet);
-        self.pot += bet;
+
+        if bet != 0 {
+            self.add_to_all_bets_up_to_highest(&player_id, bet);
+        }
+
+
+    }
+
+
+    /// Adds the player's ID to all pots that are smaller or equal to the highest bet.
+    ///
+    /// # Arguments
+    ///
+    /// * `player_id` - The ID of the player who is placing the bet.
+    /// * `highest_bet` - The highest bet that the player has made.
+    ///
+    /// # Behavior
+    ///
+    /// This function iterates over the keys of the `pots` HashMap, which represent different pot sizes. For each pot size that is smaller or equal to the `highest_bet`, it adds the `player_id` to the set of players associated with that pot size.
+    ///
+    /// This function does not return any value.
+    fn add_to_all_bets_up_to_highest(&mut self, player_id: &PlayerId, highest_bet: i32) {
+        if !self.pots.contains_key(&highest_bet) {
+            self.pots.insert(highest_bet, HashSet::new());
+        }
+
+        // let mut remaining = highest_bet;
+        // for (bet, mut hash_set) in self.pots.iter_mut() {
+        //     if remaining == 0 { break }
+        //
+        //     hash_set.insert(*player_id);
+        //     remaining = remaining - bet;
+        // }
+        //
+        // if remaining != 0 {
+        //     self.pots.insert()
+        // }
+
+            // .fold(highest_bet, |remaining, (bet, mut hash_set): (_, &mut HashSet<PlayerId>) | {
+            //     if remaining > 0 {
+            //         hash_set.insert(*player_id);
+            //         remaining - bet
+            //     }
+            //     0
+            // });
+
+
+
+        // let bet = player_id, ())
+        self.pots.iter_mut()
+            .filter(|&(&key, _): &(&i32, _)| key <= highest_bet)
+            .for_each(|(_, mut hash_set): (_, &mut HashSet<PlayerId>) | {
+                hash_set.insert(*player_id);
+            });
+    }
+
+    // fn get_total_pot_size(&self) -> i32 {
+    //     let mut pot = 0;
+    //     for (value, subpot) in self.pots.iter() {
+    //         pot += *value * (subpot.len() as i32);
+    //     }
+    //     pot
+    // }
+
+    fn get_total_player_money(&self) -> i32 {
+        self.players.iter().map(|p| {
+            let player = self.player_id_to_player.get(p).expect(PLAYER_NOT_FOUND_ERROR);
+            player.get_money()
+        }).sum()
     }
 }

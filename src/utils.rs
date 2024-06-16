@@ -105,7 +105,7 @@ pub fn get_dashes_for_longest_string<I, S>(strings: I) -> String
 /// let result = print_next_to_each_other(strings);
 /// assert_eq!(result, "Hello | Foo\nWorld | Bar\n");
 /// ```
-pub fn print_next_to_each_other<Outer, Inner>(strings_to_print: Outer) -> String
+pub fn format_next_to_each_other<Outer, Inner>(strings_to_print: Outer) -> String
     where
         Outer: IntoIterator<Item = Inner>,
         Inner: IntoIterator<Item = String>

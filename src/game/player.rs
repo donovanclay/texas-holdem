@@ -3,6 +3,7 @@ use crate::game::hand;
 
 pub type PlayerId = i32;
 
+#[derive(Debug)]
 pub struct Player {
     player_id: PlayerId,
     name: String,
@@ -64,6 +65,7 @@ impl Player {
         self.money = money;
     }
 
+    pub fn increment_money(&mut self, money: i32) { self.money = self.money + money; }
 
     pub fn get_hole_cards(&self) -> Vec<hand::Card> {
         self.hole_cards.clone()
