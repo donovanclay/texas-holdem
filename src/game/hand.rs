@@ -1,10 +1,10 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::iter::zip;
 
 use combinations::Combinations;
-use crate::game::hand;
-use crate::game::player::{Player, PlayerId};
+
+use crate::game::player::PlayerId;
 
 #[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Copy)]
 pub enum Suit {

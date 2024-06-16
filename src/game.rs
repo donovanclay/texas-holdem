@@ -1,16 +1,14 @@
 use std::cmp::max;
-use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
-use std::collections::btree_map::Keys;
+use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::collections::HashMap;
 use std::io;
 use std::io::Write;
 
+use colored::Colorize;
 use rand::prelude::IteratorRandom;
 use rand::seq::SliceRandom;
 
-use colored::Colorize;
 use crate::game::hand::{Card, OnePlayerAllPossibleCards};
-
 use crate::game::player::{Player, PlayerId};
 use crate::utils;
 
@@ -298,7 +296,6 @@ impl Game {
     }
 
     fn clear_round_data(&mut self) {
-        // TODO fix this;
         self.pots.clear();
         self.community_cards.clear();
         self.players_in_round.clear();
