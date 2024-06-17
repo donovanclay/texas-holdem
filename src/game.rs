@@ -37,8 +37,9 @@ const PLAYER_NOT_FOUND_ERROR: &str = "Expected another player in the round. Ther
 /// * `has_raised`: A `bool` that indicates whether a player has raised in the current round.
 /// * `bets`: A `HashMap` that maps `PlayerId`s to the amount they have bet.
 /// * `pots`: A `BTreeMap` that maps from a bet amount to the players that have bet that amount.
+#[derive(Debug)]
 pub struct Game {
-    game_id: i32,
+    game_id: u128,
     num_players: i32,
     players: VecDeque<PlayerId>,
     players_in_round: HashSet<PlayerId>,
@@ -59,7 +60,7 @@ pub struct Game {
 
 
 impl Game {
-    pub fn new(game_id: i32, big_blind: i32, initial_money: i32) -> Game {
+    pub fn new(game_id: u128, big_blind: i32, initial_money: i32) -> Game {
         Game {
             game_id,
             num_players: 0,
@@ -92,7 +93,7 @@ impl Game {
     }
 
 
-    pub fn get_game_id(&self) -> i32 {
+    pub fn get_game_id(&self) -> u128 {
         self.game_id
     }
 

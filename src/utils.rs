@@ -1,36 +1,79 @@
 use std::cmp::max;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
+use std::sync::{Arc, Mutex, MutexGuard};
+use rand::distributions::Standard;
 
 use rand::Rng;
+use rand::rngs::OsRng;
+use crate::game::Game;
 
-/// Generates a unique ID that is not already present in the provided set of IDs.
-///
-/// # Parameters
-///
-/// * `ids`: A reference to a `HashSet` of `i32` values. This set contains the IDs that are already in use.
-///
-/// # Returns
-///
-/// An `i32` value that is not present in `ids`. This ID is randomly generated and is in the range from 1 to 999999 (inclusive).
-///
-/// # Examples
-///
-/// ```
-/// let mut ids = HashSet::new();
-/// ids.insert(123456);
-/// let new_id = get_unique_id(&ids);
-/// assert!(!ids.contains(&new_id));
-/// ```
-pub fn get_unique_id(ids: &HashSet<i32>) -> i32 {
-    let mut rng = rand::thread_rng();
-    let mut id = rng.gen_range(1..1000000);
+pub async fn get_unique_client_id<T>(ids: &Arc<Mutex<HashSet<T>>>, rng: &Arc<Mutex<OsRng>>) -> T
+    where
+        T: Eq + Hash + Clone,
+        Standard: rand::distributions::Distribution<T>,
+{
 
-    while ids.contains(&id) {
-        id = rng.gen_range(1..1000000);
+    let mut rng = rng.lock().expect("Failed to lock RNG");
+    let mut set = ids.lock().expect("Failed to lock ID set");
+    let mut random_value: T;
+
+    loop {
+        random_value = rng.gen();
+        if !set.contains(&random_value) {
+            break;
+        }
     }
 
-    id
+    set.insert(random_value.clone());
+    random_value
 }
+
+pub async fn get_unique_game_id(game_ids: &Arc<Mutex<HashMap<u128, Game>>>, rng: Arc<Mutex<OsRng>>) -> u128
+    // where
+    //     T: Eq + Hash + Clone,
+    //     Standard: rand::distributions::Distribution<u128>,
+{
+
+    let mut rng = rng.lock().expect("Failed to lock RNG");
+    let mut map = game_ids.lock().expect("Failed to lock ID set");
+    let mut random_value: u128;
+
+    loop {
+        random_value = rng.gen();
+        if !map.contains_key(&random_value) {
+            break;
+        }
+    }
+
+    let big_blind = 2;
+    let initial_money = 1000;
+    let game: Game = Game::new(random_value.clone(), big_blind, initial_money);
+
+    map.insert(random_value.clone(), game);
+    random_value
+}
+
+// pub async fn get_unique_key<T>(ids: &MutexGuard<HashMap<u128>>, mut rng: MutexGuard<OsRng>) -> T
+//     where
+//         T: Eq + Hash + Clone,
+//         Standard: rand::distributions::Distribution<T>,
+// {
+//
+//     // let mut rng = rng.lock().expect("Failed to lock RNG");
+//     // let mut set = ids.lock().expect("Failed to lock ID set");
+//     let mut random_value: T;
+//
+//     loop {
+//         random_value = rng.gen();
+//         if !ids.contains(&random_value) {
+//             break;
+//         }
+//     }
+//
+//     // ids.insert(random_value.clone());
+//     random_value
+// }
 
 pub fn dashes(num: usize) -> String {
     "-".repeat(num).to_string()
