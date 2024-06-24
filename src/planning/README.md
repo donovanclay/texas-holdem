@@ -7,8 +7,6 @@
     ### Receiver: Server
     ### Contents:
 
-[//]: # (    * ### client_id: u128)
-
 * ## `HandshakeOk`: A message to respond to the client's `Handshake` message. This includes their assigned client_id.
     ### Sender: Server
     ### Receiver: Server
@@ -26,8 +24,6 @@
   ### Sender: Server
   ### Receiver: Client
   ### Contents:
-
-[//]: # (  * ### client_id: u128)
   * ### table_id: u128
 
 * ## `QueryTables`: A message to learn about the open tables.
@@ -36,14 +32,10 @@
   ### Contents:
   * ### client_id: u128
 
-
 * ## `TablesInfo`: A message to learn about the open tables.
   ### Sender: Server
   ### Receiver: Client
   ### Contents:
-
-[//]: # (  * ### client_id: u128)
-
 
 * ## `JoinTable`: A message to join a poker table/lobby.
   ### Sender: Client
